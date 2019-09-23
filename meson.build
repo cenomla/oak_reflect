@@ -7,7 +7,9 @@ oak_util = subproject('oak_util')
 
 oak_util_dep = oak_util.get_variable('oak_util_dep')
 clang_deps = [
+  cxx.find_library('clangBasic'),
   cxx.find_library('clangAST'),
+  cxx.find_library('clangASTMatchers'),
   cxx.find_library('clangFrontend'),
   cxx.find_library('clangTooling'),
   cxx.find_library('clangSerialization'),

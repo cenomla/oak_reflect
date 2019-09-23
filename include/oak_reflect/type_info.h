@@ -38,14 +38,6 @@ namespace oak::rtti {
 		TypeInfo const *to;
 	};
 
-	struct LRefInfo : TypeInfo {
-		TypeInfo const *to;
-	};
-
-	struct RRefInfo : TypeInfo {
-		TypeInfo const *to;
-	};
-
 	struct ArrayInfo : TypeInfo {
 		TypeInfo const *of;
 		i64 count;
@@ -57,13 +49,13 @@ namespace oak::rtti {
 	};
 
 	struct EnumInfo : TypeInfo {
-		TypeInfo const* underlyingTypeInfo;
-
+		TypeInfo const *underlyingTypeInfo;
+		Slice<EnumConstant const*> constants;
 	};
 
 	struct FieldInfo {
 		String name;
-		TypeInfo const* typeInfo;
+		TypeInfo const *typeInfo;
 
 		/// Byte offset info function
 		u64 offset;
@@ -73,19 +65,18 @@ namespace oak::rtti {
 	};
 
 	struct FunctionInfo : TypeInfo {
-		Slice<TypeInfo const> argInfos;
+		Slice<TypeInfo const*> argInfos;
 		TypeInfo const *retInfo;
 	};
 
 	struct UnionInfo : TypeInfo {
-		Slice<FieldInfo const> members;
+		Slice<FieldInfo const*> members;
 	};
 
 	struct StructInfo : TypeInfo {
-		Slice<TypeInfo const> bases;
-		Slice<FieldInfo const> members;
+		Slice<TypeInfo const*> bases;
+		Slice<FieldInfo const*> members;
 	};
 
-
-
 }
+
