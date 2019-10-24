@@ -6,6 +6,7 @@ cxx = meson.get_compiler('cpp')
 oak_util = subproject('oak_util')
 
 oak_util_dep = oak_util.get_variable('oak_util_dep')
+
 clang_deps = [
   cxx.find_library('clangBasic'),
   cxx.find_library('clangAST'),
@@ -18,6 +19,6 @@ clang_deps = [
 
 core_includes = [ include_directories('include') ]
 
-subdir('gen')
-subdir('rt')
+subdir('tools')
+subdir('runtime')
 subdir('example')

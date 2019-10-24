@@ -2,11 +2,18 @@
 
 #include <oak_reflect/attribute.h>
 
+namespace test {
 
 template<typename T>
 struct REFLECT() TClassDef {
-	REFLECT() T *data;
+	REFLECT(data) T *data;
 	REFLECT() long count;
+};
+
+struct Vec4{};
+
+struct Vertex {
+	REFLECT(color, editable, volatile) Vec4 color;
 };
 
 template<int I>
@@ -14,6 +21,7 @@ struct REFLECT() IClassDef {
 	REFLECT() float data[I];
 	REFLECT() long count;
 };
+
 
 
 struct REFLECT(common, mark) ClassDef {
@@ -24,3 +32,16 @@ struct REFLECT(common, mark) ClassDef {
 	}
 };
 
+}
+
+enum class REFLECT() Things {
+	THING0,
+	THING1,
+	THING2,
+	THING_ALPHA,
+};
+
+union REFLECT() UnionDef {
+	REFLECT() int a;
+	REFLECT() float b;
+};

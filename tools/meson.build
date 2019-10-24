@@ -1,7 +1,7 @@
 
 
 gen_sources = [
-  'main.cpp',
+  'gen.cpp',
 ]
 
 gen = executable(
