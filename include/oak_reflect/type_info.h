@@ -87,13 +87,13 @@ namespace oak {
 	};
 
 	template<typename T>
-	struct Reflect<T, std::enable_if_t<std::is_pointer_v<T>>> {
-		static constexpr PointerTypeInfo typeInfo{ { 1, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer<T>>::typeInfo };
+	struct Reflect<T, std::enable_if_t<std::is_pointer_v<std::decay_t<T>>, std::true_type>> {
+		static constexpr PointerTypeInfo typeInfo{ { 1, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer_t<std::decay_t<T>>>::typeInfo };
 	};
 
 	template<typename T>
-	struct Reflect<T, std::enable_if_t<std::is_array_v<T>>> {
-		static constexpr ArrayTypeInfo typeInfo{ { 1, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<T>>::typeInfo };
+	struct Reflect<T, std::enable_if_t<std::is_array_v<std::decay_t<T>>, std::true_type>> {
+		static constexpr ArrayTypeInfo typeInfo{ { 1, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<std::decay_t<T>>>::typeInfo, std::extent_v<std::decay_t<T>> };
 	};
 
 	template<> struct Reflect<i8> {

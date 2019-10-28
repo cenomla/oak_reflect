@@ -75,5 +75,7 @@ int main(int, char const **) {
 	v(&oak::Reflect<test::TClassDef<float>>::typeInfo, 0);
 	v(&oak::Reflect<UnionDef>::typeInfo, 0);
 	v(&oak::Reflect<Things>::typeInfo, 0);
+	v(&oak::Reflect<test::ClassSub>::typeInfo, 0);
+	v(&oak::Reflect<TaggedUnionDef>::typeInfo, 0);
 
 }

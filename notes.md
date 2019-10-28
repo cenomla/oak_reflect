@@ -10,3 +10,15 @@
   - API's that don't rely on method of integration
   - Zero heap allocation for constexpr available type info
  - Ability to represent the object model of c++ to a high degree without going overboard on stupid c++isms 
+
+### TODO:
+ - [x] Generation of struct type info
+ - [x] Generation of union type info
+ - [x] Generation of enum type info
+ - [x] Generation of templated struct type info
+ - [ ] Generation of function type info
+ - [ ] Generation of type lists
+ - [ ] Generation of function lists
+ - [x] Serialize type info to constexpr code
+ - [ ] Serialize type info to binary file
+ - [ ] Optimized runtime library

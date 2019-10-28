@@ -23,6 +23,14 @@ struct REFLECT() IClassDef {
 };
 
 
+struct REFLECT() ClassBase {
+	REFLECT() int baseA;
+};
+
+struct REFLECT() ClassSub : ClassBase {
+	REFLECT() int subA;
+};
+
 
 struct REFLECT(common, mark) ClassDef {
 	REFLECT() int a;
@@ -45,3 +53,17 @@ union REFLECT() UnionDef {
 	REFLECT() int a;
 	REFLECT() float b;
 };
+
+struct REFLECT() TaggedUnionDef {
+	REFLECT(tag) int tag;
+	REFLECT() union REFLECT() Name {
+		REFLECT(active0) int a;
+		REFLECT(active1) float b;
+		REFLECT(active2) long c;
+	} members;
+};
+
+struct REFLECT() DeclWithPointer {
+	REFLECT() int *other;
+};
+
