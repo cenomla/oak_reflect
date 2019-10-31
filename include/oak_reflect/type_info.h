@@ -8,8 +8,10 @@ namespace oak {
 
 	enum class TypeInfoKind {
 		NONE,
+		VOID,
 		PRIMITIVE,
 		FUNCTION,
+		MEMBER_FUNCTION,
 		POINTER,
 		ARRAY,
 		STRUCT,
@@ -18,6 +20,7 @@ namespace oak {
 	};
 
 	struct TypeInfo {
+		/// Unique type id, zero means intangible type (non instantiable)
 		u64 uid;
 		TypeInfoKind kind;
 	};
@@ -73,67 +76,127 @@ namespace oak {
 	};
 
 	struct FunctionTypeInfo : TypeInfo {
-		String name;
-		String annotation;
-		Slice<TypeInfo const*> argTypeInfos;
+		Slice<TypeInfo const* const> argTypeInfos;
 		TypeInfo const* returnTypeInfo;
 	};
 
-	constexpr TypeInfo noTypeInfo{ 0, TypeInfoKind::NONE };
+	struct MemberFunctionTypeInfo : TypeInfo {
+		Slice<TypeInfo const* const> argTypeInfos;
+		TypeInfo const* returnTypeInfo;
+		TypeInfo const* classTypeInfo;
+	};
+
+	// Default type:
 
 	template<typename T, typename Enable = std::true_type>
 	struct Reflect {
-		static constexpr TypeInfo typeInfo = noTypeInfo;
+		static constexpr TypeInfo typeInfo{ 0, TypeInfoKind::NONE };
 	};
+
+	// Built in types:
+
+	template<> struct Reflect<void> {
+		static constexpr TypeInfo typeInfo{ 0, TypeInfoKind::VOID };
+	};
+
+	template<> struct Reflect<i8> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 1ul, TypeInfoKind::PRIMITIVE }, "int8", sizeof(i8), alignof(i8) };
+	};
+
+	template<> struct Reflect<i16> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 2ul, TypeInfoKind::PRIMITIVE }, "int16", sizeof(i16), alignof(i16) };
+	};
+
+	template<> struct Reflect<i32> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 3ul, TypeInfoKind::PRIMITIVE }, "int32", sizeof(i32), alignof(i32) };
+	};
+
+	template<> struct Reflect<i64> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 4ul, TypeInfoKind::PRIMITIVE }, "int64", sizeof(i64), alignof(i64) };
+	};
+
+	template<> struct Reflect<u8> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 5ul, TypeInfoKind::PRIMITIVE }, "uint8", sizeof(i8), alignof(i8) };
+	};
+
+	template<> struct Reflect<u16> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 5ul, TypeInfoKind::PRIMITIVE }, "uint16", sizeof(i16), alignof(i16) };
+	};
+
+	template<> struct Reflect<u32> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 6ul, TypeInfoKind::PRIMITIVE }, "uint32", sizeof(i32), alignof(i32) };
+	};
+
+	template<> struct Reflect<u64> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 7ul, TypeInfoKind::PRIMITIVE }, "uint64", sizeof(i64), alignof(i64) };
+	};
+
+	template<> struct Reflect<f32> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 8ul, TypeInfoKind::PRIMITIVE }, "float32", sizeof(f32), alignof(f32) };
+	};
+
+	template<> struct Reflect<f64> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 9ul, TypeInfoKind::PRIMITIVE }, "float64", sizeof(f64), alignof(f64) };
+	};
+
+	// Meta-generated types:
 
 	template<typename T>
 	struct Reflect<T, std::enable_if_t<std::is_pointer_v<std::decay_t<T>>, std::true_type>> {
-		static constexpr PointerTypeInfo typeInfo{ { 1, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer_t<std::decay_t<T>>>::typeInfo };
+		static constexpr PointerTypeInfo typeInfo{ { 0, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer_t<std::decay_t<T>>>::typeInfo };
 	};
 
 	template<typename T>
 	struct Reflect<T, std::enable_if_t<std::is_array_v<std::decay_t<T>>, std::true_type>> {
-		static constexpr ArrayTypeInfo typeInfo{ { 1, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<std::decay_t<T>>>::typeInfo, std::extent_v<std::decay_t<T>> };
+		static constexpr ArrayTypeInfo typeInfo{ { 0, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<std::decay_t<T>>>::typeInfo, std::extent_v<std::decay_t<T>> };
 	};
 
-	template<> struct Reflect<i8> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "int8", sizeof(i8), alignof(i8) };
+	namespace detail {
+
+		template<typename T>
+		struct FunctionReflectionData;
+
+		template<typename Out, typename... In>
+		struct FunctionReflectionData<Out(In...)> {
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+
+			static constexpr TypeInfo const* argTypeInfos[] = {
+				&Reflect<In>::typeInfo...,
+			};
+		};
+
+		template<typename T>
+		struct MemberFunctionReflectionData;
+
+		template<typename T, typename Out, typename... In>
+		struct MemberFunctionReflectionData<Out (T::*)(In...)> {
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+
+			static constexpr TypeInfo const* argTypeInfos[] = {
+				&Reflect<In>::typeInfo...,
+			};
+
+			//static constexpr TypeInfo const* classTypeInfo = &Reflect<T>::typeInfo;
+		};
+
+	}
+
+	template<typename T>
+	struct Reflect<T, std::enable_if_t<std::is_function_v<std::remove_pointer_t<std::decay_t<T>>>, std::true_type>> {
+		// Function pointer partial specialization
+
+		using Data = detail::FunctionReflectionData<std::remove_pointer_t<std::decay_t<T>>>;
+
+		static constexpr FunctionTypeInfo typeInfo{ { 0, TypeInfoKind::FUNCTION }, Data::argTypeInfos, Data::returnTypeInfo };
 	};
 
-	template<> struct Reflect<i16> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "int16", sizeof(i16), alignof(i16) };
-	};
+	template<typename T>
+	struct Reflect<T, std::enable_if_t<std::is_member_function_pointer_v<std::decay_t<T>>, std::true_type>> {
+		// Member function pointer partial specialization
 
-	template<> struct Reflect<i32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "int32", sizeof(i32), alignof(i32) };
-	};
+		using Data = detail::MemberFunctionReflectionData<std::decay_t<T>>;
 
-	template<> struct Reflect<i64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "int64", sizeof(i64), alignof(i64) };
-	};
-
-	template<> struct Reflect<u8> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "uint8", sizeof(i8), alignof(i8) };
-	};
-
-	template<> struct Reflect<u16> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "uint16", sizeof(i16), alignof(i16) };
-	};
-
-	template<> struct Reflect<u32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "uint32", sizeof(i32), alignof(i32) };
-	};
-
-	template<> struct Reflect<u64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "uint64", sizeof(i64), alignof(i64) };
-	};
-
-	template<> struct Reflect<f32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "float32", sizeof(f32), alignof(f32) };
-	};
-
-	template<> struct Reflect<f64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1, TypeInfoKind::PRIMITIVE }, "float64", sizeof(f64), alignof(f64) };
+		static constexpr MemberFunctionTypeInfo typeInfo{ { 0, TypeInfoKind::MEMBER_FUNCTION }, Data::argTypeInfos, Data::returnTypeInfo, &Reflect<void>::typeInfo };
 	};
 
 }

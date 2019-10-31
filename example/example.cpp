@@ -21,11 +21,14 @@ int main(int, char const **) {
 			case oak::TypeInfoKind::NONE:
 				std::printf("noTypeInfo\n");
 				break;
+			case oak::TypeInfoKind::VOID:
+				std::printf("void\n");
+				break;
 			case oak::TypeInfoKind::PRIMITIVE:
 				std::printf("%s\n", static_cast<oak::PrimitiveTypeInfo const*>(typeInfo)->name.data);
 				break;
 			case oak::TypeInfoKind::POINTER:
-				std::printf("Pointer of\n");
+				std::printf("Pointer to\n");
 				v(static_cast<oak::PointerTypeInfo const*>(typeInfo)->to, depth + 1);
 				break;
 			case oak::TypeInfoKind::ARRAY:
@@ -66,6 +69,40 @@ int main(int, char const **) {
 				}
 				break;
 			case oak::TypeInfoKind::FUNCTION:
+				{
+					auto fi = static_cast<oak::FunctionTypeInfo const*>(typeInfo);
+					std::printf("Function\n");
+
+					printDepth(depth);
+					std::printf("Returns\n");
+					v(fi->returnTypeInfo, depth + 1);
+
+					printDepth(depth);
+					std::printf("Args\n");
+					for (auto const& arg : fi ->argTypeInfos) {
+						v(arg, depth + 1);
+					}
+				}
+				break;
+			case oak::TypeInfoKind::MEMBER_FUNCTION:
+				{
+					auto mfi = static_cast<oak::MemberFunctionTypeInfo const*>(typeInfo);
+					std::printf("Function\n");
+
+					printDepth(depth);
+					std::printf("Class\n");
+					v(mfi->classTypeInfo, depth + 1);
+
+					printDepth(depth);
+					std::printf("Returns\n");
+					v(mfi->returnTypeInfo, depth + 1);
+
+					printDepth(depth);
+					std::printf("Args\n");
+					for (auto const& arg : mfi ->argTypeInfos) {
+						v(arg, depth + 1);
+					}
+				}
 				break;
 		}
 

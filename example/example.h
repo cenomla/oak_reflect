@@ -5,65 +5,65 @@
 namespace test {
 
 template<typename T>
-struct REFLECT() TClassDef {
-	REFLECT(data) T *data;
-	REFLECT() long count;
+struct _reflect() TClassDef {
+	_reflect(data) T *data;
+	_reflect() long count;
 };
 
 struct Vec4{};
 
 struct Vertex {
-	REFLECT(color, editable, volatile) Vec4 color;
+	_reflect(color, editable, volatile) Vec4 color;
 };
 
 template<int I>
-struct REFLECT() IClassDef {
-	REFLECT() float data[I];
-	REFLECT() long count;
+struct _reflect() IClassDef {
+	_reflect() float data[I];
+	_reflect() long count;
 };
 
 
-struct REFLECT() ClassBase {
-	REFLECT() int baseA;
+struct _reflect() ClassBase {
+	_reflect() int baseA;
 };
 
-struct REFLECT() ClassSub : ClassBase {
-	REFLECT() int subA;
+struct _reflect() ClassSub : ClassBase {
+	_reflect() int subA;
 };
 
 
-struct REFLECT(common, mark) ClassDef {
-	REFLECT() int a;
-	REFLECT() TClassDef<float> b;
-	REFLECT() IClassDef<4> c;
-	REFLECT() void func(int) {
+struct _reflect(common, mark) ClassDef {
+	_reflect() int a;
+	_reflect() TClassDef<float> b;
+	_reflect() IClassDef<4> c;
+	_reflect() void func(int) {
 	}
 };
 
 }
 
-enum class REFLECT() Things {
+enum class _reflect() Things {
 	THING0,
 	THING1,
 	THING2,
 	THING_ALPHA,
 };
 
-union REFLECT() UnionDef {
-	REFLECT() int a;
-	REFLECT() float b;
+union _reflect() UnionDef {
+	_reflect() int a;
+	_reflect() float b;
 };
 
-struct REFLECT() TaggedUnionDef {
-	REFLECT(tag) int tag;
-	REFLECT() union REFLECT() Name {
-		REFLECT(active0) int a;
-		REFLECT(active1) float b;
-		REFLECT(active2) long c;
+struct _reflect() TaggedUnionDef {
+	_reflect(tag) int tag;
+	_reflect() union _reflect() Name {
+		_reflect(active0) int a;
+		_reflect(active1) float b;
+		_reflect(active2) long c;
 	} members;
 };
 
-struct REFLECT() DeclWithPointer {
-	REFLECT() int *other;
+struct _reflect() DeclWithPointer {
+	_reflect() int *other;
 };
 

@@ -16,7 +16,8 @@
  - [x] Generation of union type info
  - [x] Generation of enum type info
  - [x] Generation of templated struct type info
- - [ ] Generation of function type info
+ - [x] Generation of function type info
+ - [x] Generation of member function type info
  - [ ] Generation of type lists
  - [ ] Generation of function lists
  - [x] Serialize type info to constexpr code
