@@ -3,12 +3,13 @@
 
 #include <oak_util/types.h>
 
+#include <oak_reflect/type_info_list.h>
+
 #include "example.h"
 #include "example.reflect.h"
 
-int main(int, char const **) {
 
-
+void print_from_constexpr_info() {
 	static void (*v)(oak::TypeInfo const*,int) = [](oak::TypeInfo const* typeInfo, int depth = 0) {
 		auto printDepth = [](int depth) {
 			for (int i = 0; i < depth; ++i)
@@ -116,3 +117,14 @@ int main(int, char const **) {
 	v(&oak::Reflect<TaggedUnionDef>::typeInfo, 0);
 
 }
+
+void print_from_type_info_list() {
+	oak::TypeInfoList typeInfoList;
+
+}
+
+int main(int, char const **) {
+
+
+}
+
