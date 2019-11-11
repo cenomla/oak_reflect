@@ -6,6 +6,17 @@
 
 namespace oak {
 
+	namespace detail {
+
+		template<typename T>
+		void generic_construct(void *obj) {
+			if constexpr(std::is_default_constructible_v<T>) {
+				new (obj) T{};
+			}
+		}
+
+	}
+
 	enum class TypeInfoKind {
 		NONE,
 		VOID,
@@ -27,8 +38,8 @@ namespace oak {
 
 	struct PrimitiveTypeInfo : TypeInfo {
 		String name;
-		i64 size;
-		i64 align;
+		u64 size;
+		u64 align;
 	};
 
 	struct PointerTypeInfo : TypeInfo {
@@ -50,9 +61,10 @@ namespace oak {
 	struct StructTypeInfo : TypeInfo {
 		String name;
 		String annotation;
-		i64 size;
-		i64 align;
+		u64 size;
+		u64 align;
 		Slice<FieldInfo const> fields;
+		void (*defaultConstructFn)(void*);
 	};
 
 	struct EnumConstantInfo {
@@ -70,9 +82,10 @@ namespace oak {
 	struct UnionTypeInfo : TypeInfo {
 		String name;
 		String annotation;
-		i64 size;
-		i64 align;
+		u64 size;
+		u64 align;
 		Slice<FieldInfo const> fields;
+		void (*defaultConstructFn)(void*);
 	};
 
 	struct FunctionTypeInfo : TypeInfo {
@@ -88,6 +101,9 @@ namespace oak {
 
 	// Default type:
 
+	// TODO: Do not specialize `Reflect` based on this type
+	struct NoType {};
+
 	template<typename T, typename Enable = std::true_type>
 	struct Reflect {
 		static constexpr TypeInfo typeInfo{ 0, TypeInfoKind::NONE };
@@ -96,47 +112,51 @@ namespace oak {
 	// Built in types:
 
 	template<> struct Reflect<void> {
-		static constexpr TypeInfo typeInfo{ 0, TypeInfoKind::VOID };
+		static constexpr TypeInfo typeInfo{ 1ul, TypeInfoKind::VOID };
 	};
 
 	template<> struct Reflect<i8> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 1ul, TypeInfoKind::PRIMITIVE }, "int8", sizeof(i8), alignof(i8) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 2ul, TypeInfoKind::PRIMITIVE }, "int8", sizeof(i8), alignof(i8) };
 	};
 
 	template<> struct Reflect<i16> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 2ul, TypeInfoKind::PRIMITIVE }, "int16", sizeof(i16), alignof(i16) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 3ul, TypeInfoKind::PRIMITIVE }, "int16", sizeof(i16), alignof(i16) };
 	};
 
 	template<> struct Reflect<i32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 3ul, TypeInfoKind::PRIMITIVE }, "int32", sizeof(i32), alignof(i32) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 4ul, TypeInfoKind::PRIMITIVE }, "int32", sizeof(i32), alignof(i32) };
 	};
 
 	template<> struct Reflect<i64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 4ul, TypeInfoKind::PRIMITIVE }, "int64", sizeof(i64), alignof(i64) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 5ul, TypeInfoKind::PRIMITIVE }, "int64", sizeof(i64), alignof(i64) };
 	};
 
 	template<> struct Reflect<u8> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 5ul, TypeInfoKind::PRIMITIVE }, "uint8", sizeof(i8), alignof(i8) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 6ul, TypeInfoKind::PRIMITIVE }, "uint8", sizeof(i8), alignof(i8) };
 	};
 
 	template<> struct Reflect<u16> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 5ul, TypeInfoKind::PRIMITIVE }, "uint16", sizeof(i16), alignof(i16) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 7ul, TypeInfoKind::PRIMITIVE }, "uint16", sizeof(i16), alignof(i16) };
 	};
 
 	template<> struct Reflect<u32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 6ul, TypeInfoKind::PRIMITIVE }, "uint32", sizeof(i32), alignof(i32) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 8ul, TypeInfoKind::PRIMITIVE }, "uint32", sizeof(i32), alignof(i32) };
 	};
 
 	template<> struct Reflect<u64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 7ul, TypeInfoKind::PRIMITIVE }, "uint64", sizeof(i64), alignof(i64) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 9ul, TypeInfoKind::PRIMITIVE }, "uint64", sizeof(i64), alignof(i64) };
 	};
 
 	template<> struct Reflect<f32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 8ul, TypeInfoKind::PRIMITIVE }, "float32", sizeof(f32), alignof(f32) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 10ul, TypeInfoKind::PRIMITIVE }, "float32", sizeof(f32), alignof(f32) };
 	};
 
 	template<> struct Reflect<f64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 9ul, TypeInfoKind::PRIMITIVE }, "float64", sizeof(f64), alignof(f64) };
+		static constexpr PrimitiveTypeInfo typeInfo{ { 11ul, TypeInfoKind::PRIMITIVE }, "float64", sizeof(f64), alignof(f64) };
+	};
+
+	template<> struct Reflect<bool> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 12ul, TypeInfoKind::PRIMITIVE }, "bool", sizeof(bool), alignof(bool) };
 	};
 
 	// Meta-generated types:
@@ -199,4 +219,48 @@ namespace oak {
 		static constexpr MemberFunctionTypeInfo typeInfo{ { 0, TypeInfoKind::MEMBER_FUNCTION }, Data::argTypeInfos, Data::returnTypeInfo, &Reflect<void>::typeInfo };
 	};
 
+	constexpr u64 type_size(TypeInfo const *typeInfo) {
+		switch (typeInfo->kind) {
+			case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->size;
+			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->size;
+			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->size;
+			case TypeInfoKind::ENUM: return type_size(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+			default: return 0;
+		}
+	}
+
+	constexpr u64 type_align(TypeInfo const *typeInfo) {
+		switch (typeInfo->kind) {
+			case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->align;
+			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->align;
+			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->align;
+			case TypeInfoKind::ENUM: return type_align(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+			default: return 0;
+		}
+	}
+
+	constexpr String type_name(TypeInfo const *typeInfo) {
+		switch (typeInfo->kind) {
+			case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->name;
+			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->name;
+			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->name;
+			case TypeInfoKind::ENUM: return type_name(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+			default: return "";
+		}
+	}
+
+	template<typename T>
+	constexpr String enum_name(T e, TypeInfo const *typeInfo) {
+		if (typeInfo->kind == TypeInfoKind::ENUM) {
+			auto ei = static_cast<EnumTypeInfo const*>(typeInfo);
+			for (auto constant : ei->constants) {
+				if (constant.value == static_cast<u64>(enum_int(e))) {
+					return constant.name;
+				}
+			}
+		}
+		return "";
+	}
+
 }
+

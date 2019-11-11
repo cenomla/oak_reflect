@@ -21,4 +21,8 @@ core_includes = [ include_directories('include') ]
 
 subdir('tools')
 subdir('runtime')
-subdir('example')
+
+if get_option('build_example')
+  subdir('example')
+endif
+

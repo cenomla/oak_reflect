@@ -8,21 +8,37 @@
 namespace oak {
 
 	struct TypeInfoListCreateInfo {
-		Slice<byte> source;
 	};
 
 	struct TypeInfoList {
 
 		i64 typeInfoDataCapacity = 0;
 
-		HashMap<u64, TypeInfo const*> idToTypeInfoMap;
+		Slice<TypeInfo const*> types;
+
+		HashMap<u64, i64> uidToTypeInfoMap;
 
 		void init(TypeInfoListCreateInfo const& createInfo);
 
-		void parseTypeInfoData(Slice<byte> source);
-
 		u64 type_id_from_name(String name);
 
+	};
+
+	struct TypeCatagoryCreateInfo {
+		Allocator *allocator = nullptr;
+		i64 typeCapacity = 0;
+	};
+
+	struct TypeCatagory {
+
+		Slice<TypeInfo const*> types;
+		HashMap<u64, i64> uidToIndexMap;
+
+		void init(TypeCatagoryCreateInfo const& createInfo);
+		void destroy(Allocator *allocator);
+
+		void add_type(TypeInfo const *typeInfo);
+		i64 type_index(TypeInfo const *typeInfo) const;
 	};
 
 }

@@ -251,7 +251,21 @@ struct DeclConstexprSerializer : DeclSerializer {
 		oak::buffer_fmt(fb, "template<> struct Reflect<%g::%g> {\n", namespaceName, specializationName);
 		oak::buffer_fmt(fb, "\tusing T = %g::%g;\n", namespaceName, specializationName);
 
-		bool hasFields = !decl->field_empty();
+		bool hasFields = false;
+		for (auto const field : decl->fields()) {
+			auto fanno = get_annotation_string(field);
+			if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
+				hasFields = true;
+				break;
+			}
+		}
+		for (auto const func : decl->methods()) {
+			auto fanno = get_annotation_string(func);
+			if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
+				hasFields = true;
+				break;
+			}
+		}
 		if (hasFields) {
 			oak::buffer_fmt(fb, "\tstatic constexpr FieldInfo fields[] = {\n");
 			for (auto const field : decl->fields()) {
@@ -282,7 +296,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		if (decl->isUnion()) {
 			oak::buffer_fmt(fb,
 					"\tstatic constexpr UnionTypeInfo typeInfo{ { %gul, TypeInfoKind::UNION }"
-					", \"%g\", \"%g\", sizeof(T), alignof(T), %g };\n",
+					", \"%g\", \"%g\", sizeof(T), alignof(T), %g, &detail::generic_construct<T> };\n",
 					typeId,
 					specializationName,
 					annotation,
@@ -290,7 +304,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		} else if (decl->isClass() || decl->isStruct()) {
 			oak::buffer_fmt(fb,
 					"\tstatic constexpr StructTypeInfo typeInfo{ { %gul, TypeInfoKind::STRUCT }"
-					", \"%g\", \"%g\", sizeof(T), alignof(T), %g };\n",
+					", \"%g\", \"%g\", sizeof(T), alignof(T), %g, &detail::generic_construct<T> };\n",
 					typeId,
 					specializationName,
 					annotation,
@@ -310,12 +324,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		oak::buffer_fmt(fb, "template<> struct Reflect<%g::%g> {\n", namespaceName, enumName);
 		oak::buffer_fmt(fb, "\tusing T = %g::%g;\n", namespaceName, enumName);
 
-		bool hasConstants;
-		{
-			auto begin = decl->enumerator_begin();
-			auto end = decl->enumerator_end();
-			hasConstants = begin != end;
-		}
+		bool hasConstants = decl->enumerator_begin() != decl->enumerator_end();
 		if (hasConstants) {
 			oak::buffer_fmt(fb, "\tstatic constexpr EnumConstantInfo enumConstants[] = {\n");
 			for (auto const& enumConstant : decl->enumerators()) {

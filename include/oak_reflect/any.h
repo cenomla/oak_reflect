@@ -1,4 +1,47 @@
 #pragma once
 
+#include "type_info.h"
+#include "attribute.h"
+
 namespace oak {
+
+	struct _reflect() Any {
+		void *ptr = nullptr;
+		TypeInfo const *type = nullptr;
+
+		Any() = default;
+		Any(void *ptr_, TypeInfo const *type_) : ptr{ ptr_ }, type{ type_ } {}
+
+		template<typename T, typename = std::enable_if_t<!std::is_same_v<std::decay_t<T>, Any>>>
+		Any(T&& thing, TypeInfo const *type_) : ptr{ &thing }, type{ type_ } {}
+
+		Any get_member(String name) noexcept;
+		Any get_member(String name) const noexcept;
+		Any get_element(i64 index) noexcept;
+
+		void construct() noexcept;
+
+		template<typename T>
+		T const& to_value() const noexcept {
+			return *static_cast<T const*>(ptr);
+		}
+
+		template<typename T>
+		T& to_value() noexcept {
+			return *static_cast<T*>(ptr);
+		}
+
+		void set_enum_value(u64 ev) noexcept;
+		u64 get_enum_value() const noexcept;
+
+	};
+
+	bool operator==(Any const& lhs, Any const& rhs) noexcept;
+
+	inline bool operator!=(Any const& lhs, Any const& rhs) noexcept {
+		return !(lhs == rhs);
+	}
+
+	void copy_fields(Any dst, Any src);
 }
+
