@@ -1,16 +1,12 @@
 #pragma once
 
 #include <oak_reflect/attribute.h>
+#include "example_incl.h"
+#include <oak_util/types.h>
 
 namespace test {
 
-template<typename T>
-struct _reflect() TClassDef {
-	_reflect(data) T *data;
-	_reflect() long count;
-};
-
-struct Vec4{};
+struct _reflect() Vec4{};
 
 struct Vertex {
 	_reflect(color, editable, volatile) Vec4 color;
@@ -36,6 +32,7 @@ struct _reflect(common, mark) ClassDef {
 	_reflect() int a;
 	_reflect() TClassDef<float> b;
 	_reflect() IClassDef<4> c;
+	//_reflect() oak::Slice<int> d;
 	_reflect() void func(int) {
 	}
 };

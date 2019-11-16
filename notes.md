@@ -21,5 +21,4 @@
  - [ ] Generation of type lists
  - [ ] Generation of function lists
  - [x] Serialize type info to constexpr code
- - [ ] Serialize type info to binary file
- - [ ] Optimized runtime library
+ - [x] Optimized runtime library
