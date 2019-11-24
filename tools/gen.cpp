@@ -39,7 +39,7 @@ namespace {
 
 	struct CLIArgOutput {
 		oak::String outputFilename;
-		oak::HashSet<oak::String> inputFilenames;
+		oak::Vector<oak::String> inputFilenames;
 	};
 
 	struct CLIArgs {
@@ -52,7 +52,6 @@ namespace {
 		for (int i = 0; i < argc; ++i) {
 			if (oak::find_slice(oak::String{ argv[i] }, oak::String{ "--output" }) == 0) {
 				CLIArgOutput output;
-				output.inputFilenames.init(allocator, argc);
 				++i;
 				// First arg after this one is the output, after that a list of inputs
 				for (; i < argc && oak::find_slice(oak::String{ argv[i] }, oak::String{ "-" }) != 0;) {
@@ -61,7 +60,7 @@ namespace {
 					break;
 				}
 				for (; i < argc && oak::find_slice(oak::String{ argv[i] }, oak::String{ "-" }) != 0; ++i) {
-					output.inputFilenames.insert(argv[i]);
+					output.inputFilenames.push(allocator, argv[i]);
 				}
 				result.outputs.push(allocator, output);
 			}
@@ -75,10 +74,15 @@ namespace {
 		oak::Vector<char const*> inputs;
 		inputs.push(allocator, programName);
 		for (auto const& output : args->outputs) {
-			for (auto [empty, ifn] : output.inputFilenames) {
+			for (auto const& ifn : output.inputFilenames) {
 				inputs.push(allocator, ifn.data);
 			}
 		}
+		oak::print_fmt("args: ");
+		for (auto input : inputs) {
+			oak::print_fmt("%g, ", input);
+		}
+		oak::print_fmt("\n");
 		auto argc = static_cast<int>(inputs.count);
 		return cltool::CommonOptionsParser{ argc, inputs.data, oakRttiCategory };
 	}
@@ -150,12 +154,58 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 		if (!isInMainFile || record->isDependentType())
 			return;
 
-		// Always insert records before their topmost enclosing declaration
+		// Always insert records before their topmost enclosing declaration and any structs whose fields reference this type
 		i64 insertIndex = decls.count;
 		for (i64 i = 0; i < decls.count; ++i) {
 			auto const& decl = decls[i];
+			if (decl->isRecord()) {
+				auto recordDecl = static_cast<cltool::CXXRecordDecl const*>(decl);
+				if (recordDecl->getTemplateSpecializationKind() != 0) {
+					auto specialization = static_cast<cltool::ClassTemplateSpecializationDecl const*>(recordDecl);
+					for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
+						auto kind = arg.getKind();
+						switch (kind) {
+							case clang::TemplateArgument::Type:
+								{
+									auto type = arg.getAsType().getTypePtr();
+									if (type->isRecordType()) {
+										if (record == type->getAsCXXRecordDecl()) {
+											insertIndex = i;
+										}
+									} if (type->isPointerType()) {
+										auto pointeeType = static_cast<clang::PointerType const*>(type)
+											->getPointeeType().getTypePtr();
+										if (pointeeType->isRecordType()) {
+											if (record == pointeeType->getAsCXXRecordDecl()) {
+												insertIndex = i;
+											}
+										}
+									}
+								} break;
+							default:
+								break;
+						}
+					}
+				}
+			}
+			/*
+			if (decl->isRecord()) {
+				for (auto const& field : recordDecl->fields()) {
+					auto const& type = field->getType();
+					if (type->isRecordType()) {
+						type->dump();
+						if (type->getAsCXXRecordDecl()->getDefinition() == record) {
+							insertIndex = i;
+							break;
+						}
+					}
+				}
+			}
+			*/
 			if (decl->Encloses(record)) {
 				insertIndex = i;
+			}
+			if (insertIndex != decls.count) {
 				break;
 			}
 		}
@@ -203,15 +253,23 @@ struct DeclConstexprSerializer : DeclSerializer {
 	CLIArgOutput *output = nullptr;
 	FILE *file = nullptr;
 
+	oak::Slice<char> typeListString;
+	oak::StringBuffer typeListStringBuffer;
+
 	void init(CLIArgOutput *output_) {
 		output = output_;
 		if (!file) {
 			file = std::fopen(oak::as_c_str(output->outputFilename), "wb");
 		}
 		write_header(output->inputFilenames);
+
+		typeListStringBuffer = oak::StringBuffer{ &oak::temporaryMemory, &typeListString, 0 };
+		write_start_type_list();
 	}
 
 	void destroy() {
+		write_end_type_list();
+		write_type_list();
 		write_footer();
 		std::fclose(file);
 	}
@@ -230,8 +288,29 @@ struct DeclConstexprSerializer : DeclSerializer {
 				switch (kind) {
 					case clang::TemplateArgument::Type:
 						{
-							auto const& type = arg.getAsType();
-							oak::buffer_fmt(sb, "%g", type.getAsString());
+							auto const& qualType = arg.getAsType();
+							auto type = qualType.getTypePtr();
+							if (type->isRecordType()) {
+								auto recordDecl = type->getAsCXXRecordDecl();
+								oak::buffer_fmt(sb, "%g%g", get_namespace_name(recordDecl), get_specialization_name(recordDecl));
+							} else if (type->isEnumeralType()) {
+								auto enumDecl = static_cast<cltool::EnumType const*>(type)->getDecl();
+								oak::buffer_fmt(sb, "%g%g", get_namespace_name(enumDecl), get_enum_name(enumDecl));
+							} else if (type->isPointerType()) {
+								auto pointeeQualType = static_cast<clang::PointerType const*>(type)->getPointeeType();
+								auto pointeeType = pointeeQualType.getTypePtr();
+								if (pointeeType->isRecordType()) {
+									auto recordDecl = pointeeType->getAsCXXRecordDecl();
+									oak::buffer_fmt(sb, "%g%g*", get_namespace_name(recordDecl), get_specialization_name(recordDecl));
+								} else if (pointeeType->isEnumeralType()) {
+									auto enumDecl = static_cast<cltool::EnumType const*>(type)->getDecl();
+									oak::buffer_fmt(sb, "%g%g*", get_namespace_name(enumDecl), get_enum_name(enumDecl));
+								} else {
+									oak::buffer_fmt(sb, "%g*", qualType.getAsString());
+								}
+							} else {
+								oak::buffer_fmt(sb, "%g", qualType.getAsString());
+							}
 
 						} break;
 					case clang::TemplateArgument::Integral:
@@ -278,13 +357,41 @@ struct DeclConstexprSerializer : DeclSerializer {
 		return namespaceName;
 	}
 
-	void write_header(oak::HashSet<oak::String> const& filenames) {
+	void write_start_type_list() {
+		auto listName = oak::sub_slice(output->outputFilename, 0, oak::find_first_of(output->outputFilename, oak::String{ "." }));
+		oak::buffer_fmt(typeListStringBuffer, "constexpr TypeInfo const* typeList_%g[] = {\n", listName);
+	}
+
+	void write_end_type_list() {
+		oak::buffer_fmt(typeListStringBuffer, "};\n");
+	}
+
+	void write_record_type_list_item(cltool::CXXRecordDecl const* decl) {
+		oak::buffer_fmt(typeListStringBuffer,
+				"&Reflect<%g%g>::typeInfo,\n",
+				get_namespace_name(decl),
+				get_specialization_name(decl));
+	}
+
+	void write_enum_type_list_item(cltool::EnumDecl const* decl) {
+		oak::buffer_fmt(typeListStringBuffer,
+				"&Reflect<%g%g>::typeInfo,\n",
+				get_namespace_name(decl),
+				get_enum_name(decl));
+	}
+
+	void write_type_list() {
+		oak::FileBuffer fb{ file };
+		oak::buffer_fmt(fb, typeListString);
+	}
+
+	void write_header(oak::Vector<oak::String> const& filenames) {
 		oak::FileBuffer fb{ file };
 		oak::buffer_fmt(fb, "#pragma once\n\n");
 
 		oak::buffer_fmt(fb, "#include <oak_reflect/type_info.h>\n");
 
-		for (auto [empty, fn] : filenames) {
+		for (auto const& fn : filenames) {
 			oak::buffer_fmt(fb, "#include <%g>\n", fn);
 		}
 
@@ -424,23 +531,13 @@ struct DeclConstexprSerializer : DeclSerializer {
 	void serialize(DeclFinder *finder) override {
 		for (auto const& decl : finder->decls) {
 			if (decl->isEnum()) {
-				write_parsed_enum(static_cast<cltool::EnumDecl const*>(decl));
+				auto enumDecl = static_cast<cltool::EnumDecl const*>(decl);
+				write_parsed_enum(enumDecl);
+				write_enum_type_list_item(enumDecl);
 			} else {
-				write_parsed_record(static_cast<cltool::CXXRecordDecl const*>(decl));
-				/*
-				auto record = static_cast<cltool::CXXRecordDecl const*>(decl);
-				if (record->getTemplateSpecializationKind() != 0) {
-					continue;
-				}
-				auto dct = record->getDescribedClassTemplate();
-				if (dct) {
-					for (auto const& specialization : dct->specializations()) {
-						write_parsed_record(record, specialization);
-					}
-				} else {
-					write_parsed_record(record, nullptr);
-				}
-				*/
+				auto recordDecl = static_cast<cltool::CXXRecordDecl const*>(decl);
+				write_parsed_record(recordDecl);
+				write_record_type_list_item(recordDecl);
 			}
 		}
 	}
@@ -476,10 +573,7 @@ cltool::CommandLineArguments reflectDefineAdjuster(cltool::CommandLineArguments 
 
 int main(int argc, char const *const *argv) {
 
-	oak::MemoryArena tempArena;
-	oak::init_linear_arena(&tempArena, &oak::globalAllocator, 64ll * 1ll << 20);
-
-	oak::temporaryMemory = { &tempArena, oak::allocate_from_linear_arena, nullptr };
+	oak::temporaryMemory = oak::globalAllocator;
 
 	auto args = parse_args(&oak::temporaryMemory, argc, argv);
 	auto op = build_options_parser(&oak::temporaryMemory, &args, argv[0]);

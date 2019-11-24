@@ -12,9 +12,6 @@ namespace oak {
 		Any() = default;
 		Any(void *ptr_, TypeInfo const *type_) : ptr{ ptr_ }, type{ type_ } {}
 
-		template<typename T, typename = std::enable_if_t<!std::is_same_v<std::decay_t<T>, Any>>>
-		Any(T&& thing, TypeInfo const *type_) : ptr{ &thing }, type{ type_ } {}
-
 		Any get_member(String name) noexcept;
 		Any get_member(String name) const noexcept;
 		Any get_element(i64 index) noexcept;
@@ -33,6 +30,8 @@ namespace oak {
 
 		void set_enum_value(u64 ev) noexcept;
 		u64 get_enum_value() const noexcept;
+
+		Any shallow_copy(Allocator *allocator) const;
 
 	};
 

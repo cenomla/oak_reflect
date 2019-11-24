@@ -18,7 +18,6 @@
  - [x] Generation of templated struct type info
  - [x] Generation of function type info
  - [x] Generation of member function type info
- - [ ] Generation of type lists
- - [ ] Generation of function lists
+ - [x] Generation of type lists
  - [x] Serialize type info to constexpr code
  - [x] Optimized runtime library

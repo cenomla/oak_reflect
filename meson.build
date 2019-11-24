@@ -26,3 +26,6 @@ if get_option('build_example')
   subdir('example')
 endif
 
+reflection_sources = files([
+  'include/oak_reflect/any.h',
+])

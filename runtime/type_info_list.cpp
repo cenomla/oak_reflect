@@ -2,35 +2,36 @@
 
 namespace oak {
 
-	void TypeInfoList::init(TypeInfoListCreateInfo const& createInfo) {
+	void TypeCategory::init(TypeCategoryCreateInfo const& createInfo) {
+		capacity = createInfo.typeCapacity;
+		types.data = allocate<TypeInfo const*>(createInfo.allocator, capacity);
 	}
 
-	u64 TypeInfoList::type_id_from_name(String name) {
-		// TODO: complete this better
-		return HashFn<String>{}(name);
+	void TypeCategory::destroy(Allocator *allocator) {
+		deallocate(allocator, types.data, capacity);
 	}
 
-
-	void TypeCatagory::init(TypeCatagoryCreateInfo const& createInfo) {
-		uidToIndexMap.init(createInfo.allocator, createInfo.typeCapacity);
-		types.data = allocate<TypeInfo const*>(createInfo.allocator, uidToIndexMap.capacity);
-	}
-
-	void TypeCatagory::destroy(Allocator *allocator) {
-		deallocate(allocator, types.data, uidToIndexMap.capacity);
-		uidToIndexMap.destroy(allocator);
-	}
-
-	void TypeCatagory::add_type(TypeInfo const* typeInfo) {
-		uidToIndexMap.insert(typeInfo->uid, types.count);
+	void TypeCategory::add_type(TypeInfo const* typeInfo) {
+		assert(types.count < capacity);
 		types[types.count++] = typeInfo;
 	}
 
-	i64 TypeCatagory::type_index(TypeInfo const* typeInfo) const {
-		if (auto idx = uidToIndexMap.find(typeInfo->uid); idx != -1) {
-			return get<i64*>(uidToIndexMap.data)[idx];
+	i64 TypeCategory::type_index(TypeInfo const* typeInfo) const {
+		for (i64 i = 0; i < types.count; ++i) {
+			if (types[i] == typeInfo) {
+				return i;
+			}
 		}
 		return -1;
+	}
+
+	TypeInfo const* TypeCategory::find_type_with_name(String name) const {
+		for (auto type : types) {
+			if (type_name(type) == name) {
+				return type;
+			}
+		}
+		return nullptr;
 	}
 
 }

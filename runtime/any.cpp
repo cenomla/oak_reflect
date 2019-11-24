@@ -37,29 +37,34 @@ namespace oak {
 			if (index < ai->count) {
 				return { add_ptr(ptr, index * type_size(ai->of)), ai->of };
 			}
-		}
-		// TODO: Special case for user defined array types
-		/*else if (type->kind == TypeInfoKind::OAK_SLICE) {
+		} else if (has_attribute(type, "array")) {
 			auto data = get_member("data");
 			auto count = get_member("count");
 			if (index < count.to_value<i64>()) {
-				auto pi = static_cast<PtrInfo const*>(data.type);
-				return { add_ptr(data.to_value<void*>(), index * pi->of->size), pi->of };
+				auto pi = static_cast<PointerTypeInfo const*>(data.type);
+				return { add_ptr(data.to_value<void*>(), index * type_size(pi->to)), pi->to };
 			}
 		}
-		*/
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
 
 	void Any::construct() noexcept {
-		if (type->kind == TypeInfoKind::STRUCT) {
-			auto si = static_cast<StructTypeInfo const*>(type);
-			// TODO: Call constructor for type
-			/*
-			if (si->construct) {
-				si->construct(ptr);
-			}
-			*/
+		switch (type->kind) {
+			case TypeInfoKind::STRUCT:
+				{
+					auto si = static_cast<StructTypeInfo const*>(type);
+					if (si->defaultConstructFn) {
+						si->defaultConstructFn(ptr);
+					}
+				} break;
+			case TypeInfoKind::UNION:
+				{
+					auto ui = static_cast<UnionTypeInfo const*>(type);
+					if (ui->defaultConstructFn) {
+						ui->defaultConstructFn(ptr);
+					}
+				} break;
+			default: break;
 		}
 	}
 
@@ -97,6 +102,19 @@ namespace oak {
 		return ev;
 	}
 
+	Any Any::shallow_copy(Allocator *allocator) const {
+		if (type->kind != TypeInfoKind::STRUCT)
+			return Any{ nullptr, &Reflect<NoType>::typeInfo };
+
+		Any result;
+		result.type = type;
+		result.ptr = allocator->allocate(type_size(type), type_align(type));
+
+		copy_fields(result, *this);
+
+		return result;
+	}
+
 	bool operator==(Any const& lhs, Any const& rhs) noexcept {
 		if (lhs.type != rhs.type) {
 			return false;
@@ -118,6 +136,7 @@ namespace oak {
 					case Reflect<u64>::typeInfo.uid: return lhs.to_value<u64>() == rhs.to_value<u64>();
 					case Reflect<f32>::typeInfo.uid: return lhs.to_value<f32>() == rhs.to_value<f32>();
 					case Reflect<f64>::typeInfo.uid: return lhs.to_value<f64>() == rhs.to_value<f64>();
+					default: return false;
 				}
 			};
 			case TypeInfoKind::POINTER: return lhs.to_value<void*>() == rhs.to_value<void*>();
@@ -136,17 +155,37 @@ namespace oak {
 			}
 			case TypeInfoKind::STRUCT:
 			{
-				// TODO: Specal case for slice or user defined array types in general
-				bool ret = true;
-				auto si = static_cast<StructTypeInfo const*>(lhs.type);
-				for (auto& field : si->fields) {
-					if (Any{ add_ptr(lhs.ptr, field.offset), field.typeInfo }
-							!= Any{ add_ptr(rhs.ptr, field.offset), field.typeInfo }) {
+				if (has_attribute(lhs.type, "array")) {
+					bool ret = true;
+					auto pi = static_cast<PointerTypeInfo const*>(lhs.get_member("data").type);
+					auto& data0 = lhs.get_member("data").to_value<void*>();
+					auto& count0 = lhs.get_member("count").to_value<i64>();
+					auto& data1 = rhs.get_member("data").to_value<void*>();
+					auto& count1 = rhs.get_member("count").to_value<i64>();
+					if (count0 == count1) {
+						for (i32 i = 0; i < count0; ++i) {
+							if (Any{ add_ptr(data0, i * type_size(pi->to)), pi->to }
+									!= Any{ add_ptr(data1, i * type_size(pi->to)), pi->to }) {
+								ret = false;
+								break;
+							}
+						}
+					} else {
 						ret = false;
-						break;
 					}
+					return ret;
+				} else {
+					bool ret = true;
+					auto si = static_cast<StructTypeInfo const*>(lhs.type);
+					for (auto& field : si->fields) {
+						if (Any{ add_ptr(lhs.ptr, field.offset), field.typeInfo }
+								!= Any{ add_ptr(rhs.ptr, field.offset), field.typeInfo }) {
+							ret = false;
+							break;
+						}
+					}
+					return ret;
 				}
-				return ret;
 			}
 			case TypeInfoKind::UNION:
 			{
@@ -154,29 +193,6 @@ namespace oak {
 				return false;
 			};
 			case TypeInfoKind::ENUM: return lhs.get_enum_value() == rhs.get_enum_value();
-			/*
-			case TypeInfoKind::OAK_SLICE:
-			{
-				bool ret = true;
-				auto pi = static_cast<PtrInfo const*>(lhs.get_member("data").type);
-				auto& data0 = lhs.get_member("data").to_value<void*>();
-				auto& count0 = lhs.get_member("count").to_value<i64>();
-				auto& data1 = rhs.get_member("data").to_value<void*>();
-				auto& count1 = rhs.get_member("count").to_value<i64>();
-				if (count0 == count1) {
-					for (i32 i = 0; i < count0; ++i) {
-						if (Any{ add_ptr(data0, i * pi->of->size), pi->of }
-								!= Any{ add_ptr(data1, i * pi->of->size), pi->of }) {
-							ret = false;
-							break;
-						}
-					}
-				} else {
-					ret = false;
-				}
-				return ret;
-			}
-			*/
 			default:
 				return false;
 		}
@@ -194,9 +210,9 @@ namespace oak {
 		auto si1 = static_cast<StructTypeInfo const*>(src.type);
 		for (auto field0 : si0->fields) {
 			for (auto field1 : si1->fields) {
-				if (field0.name == field1.name) {
-					// TODO: Check for volatile annotation
-					if (field0.typeInfo->kind == TypeInfoKind::STRUCT && field1.typeInfo->kind == TypeInfoKind::STRUCT) {
+				if (field0.name == field1.name && !has_attribute(&field0, "volatile")) {
+					if (field0.typeInfo->kind == TypeInfoKind::STRUCT
+							&& field1.typeInfo->kind == TypeInfoKind::STRUCT) {
 						copy_fields(
 								{ add_ptr(dst.ptr, field0.offset), field0.typeInfo },
 								{ add_ptr(src.ptr, field1.offset), field1.typeInfo });

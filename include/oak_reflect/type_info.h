@@ -3,6 +3,7 @@
 #include <type_traits>
 
 #include <oak_util/types.h>
+#include <oak_util/fmt.h>
 
 namespace oak {
 
@@ -247,6 +248,46 @@ namespace oak {
 			case TypeInfoKind::ENUM: return type_name(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
 			default: return "";
 		}
+	}
+
+	constexpr bool attribute_in_annotation(String annotation, String attribute) {
+		if (annotation.count <= attribute.count)
+			return false;
+
+		// TODO(SIMD): Make this simd
+		i64 end = annotation.count;
+		for (i64 i = 0; i < end; ++i) {
+			if (annotation[i] == ';' || annotation[i] == ',') {
+				i64 j = i + 1;
+				for (; j <= end; ++j) {
+					if (j == end || annotation[j] == ',') {
+						auto str = String{ annotation.data + i + 1, j - i - 1 };
+						if (str == attribute) {
+							return true;
+						}
+					}
+				}
+				i = j;
+			}
+		}
+
+		return false;
+	}
+
+	constexpr bool has_attribute(TypeInfo const *typeInfo, String attribute) {
+		String annotation;
+		switch (typeInfo->kind) {
+			case TypeInfoKind::STRUCT: annotation = static_cast<StructTypeInfo const*>(typeInfo)->annotation; break;
+			case TypeInfoKind::UNION: annotation = static_cast<UnionTypeInfo const*>(typeInfo)->annotation; break;
+			case TypeInfoKind::ENUM: annotation = static_cast<EnumTypeInfo const*>(typeInfo)->annotation; break;
+			default: break;
+		}
+
+		return attribute_in_annotation(annotation, attribute);
+	}
+
+	constexpr bool has_attribute(FieldInfo const *fieldInfo, String attribute) {
+		return attribute_in_annotation(fieldInfo->annotation, attribute);
 	}
 
 	template<typename T>
