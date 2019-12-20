@@ -14,6 +14,8 @@ namespace oak {
 
 		Any get_member(String name) noexcept;
 		Any get_member(String name) const noexcept;
+		Any get_member(FieldInfo const *info) noexcept;
+		Any get_member(FieldInfo const *info) const noexcept;
 		Any get_element(i64 index) noexcept;
 
 		void construct() noexcept;

@@ -31,6 +31,14 @@ namespace oak {
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
 
+	Any Any::get_member(FieldInfo const *field) noexcept {
+		return { add_ptr(ptr, field->offset), field->typeInfo };
+	}
+
+	Any Any::get_member(FieldInfo const *field) const noexcept {
+		return { add_ptr(ptr, field->offset), field->typeInfo };
+	}
+
 	Any Any::get_element(i64 index) noexcept {
 		if (type->kind == TypeInfoKind::ARRAY) {
 			auto ai = static_cast<ArrayTypeInfo const*>(type);
