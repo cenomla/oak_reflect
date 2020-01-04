@@ -25,9 +25,24 @@ namespace oak {
 		return -1;
 	}
 
-	TypeInfo const* TypeCategory::find_type_with_name(String name) const {
-		for (auto type : types) {
+	TypeInfo const* TypeCategory::find_type_with_name(String name, i64 *index) const {
+		for (i64 i = 0; i < types.count; ++i) {
+			auto type = types[i];
 			if (type_name(type) == name) {
+				if (index)
+					*index = i;
+				return type;
+			}
+		}
+		return nullptr;
+	}
+
+	TypeInfo const* TypeCategory::find_type_with_uid(u64 uid, i64 *index) const {
+		for (i64 i = 0; i < types.count; ++i) {
+			auto type = types[i];
+			if (type->uid == uid) {
+				if (index)
+					*index = i;
 				return type;
 			}
 		}

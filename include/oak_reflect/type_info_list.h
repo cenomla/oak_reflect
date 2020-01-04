@@ -22,7 +22,8 @@ namespace oak {
 		void add_type(TypeInfo const *typeInfo);
 		i64 type_index(TypeInfo const *typeInfo) const;
 
-		TypeInfo const* find_type_with_name(String name) const;
+		TypeInfo const* find_type_with_name(String name, i64 *index = nullptr) const;
+		TypeInfo const* find_type_with_uid(u64 uid, i64 *index = nullptr) const;
 	};
 
 }
