@@ -38,6 +38,7 @@ namespace {
 	llvm::cl::extrahelp oakRttiHelp{ "\nOak RTTI help\n" };
 
 	struct CLIArgOutput {
+		oak::String buildDir;
 		oak::String outputFilename;
 		oak::Vector<oak::String> inputFilenames;
 	};
@@ -48,10 +49,21 @@ namespace {
 
 	CLIArgs parse_args(oak::Allocator *allocator, int argc, char const *const *argv) {
 		CLIArgs result;
+		oak::String buildDir;
 
 		for (int i = 0; i < argc; ++i) {
+			if (oak::find_slice(oak::String{ argv[i] }, oak::String{ "--build-dir" }) == 0) {
+				++i;
+
+				for (;i < argc && oak::find_slice(oak::String{ argv[i] }, oak::String{ "-" }) != 0;) {
+					buildDir = argv[i];
+					++i;
+					break;
+				}
+			}
 			if (oak::find_slice(oak::String{ argv[i] }, oak::String{ "--output" }) == 0) {
 				CLIArgOutput output;
+				output.buildDir = buildDir;
 				++i;
 				// First arg after this one is the output, after that a list of inputs
 				for (; i < argc && oak::find_slice(oak::String{ argv[i] }, oak::String{ "-" }) != 0;) {
@@ -261,7 +273,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		if (!file) {
 			file = std::fopen(oak::as_c_str(output->outputFilename), "wb");
 		}
-		write_header(output->inputFilenames);
+		write_header(output->buildDir, output->inputFilenames);
 
 		typeListStringBuffer = oak::StringBuffer{ &oak::temporaryMemory, &typeListString, 0 };
 		write_start_type_list();
@@ -358,7 +370,10 @@ struct DeclConstexprSerializer : DeclSerializer {
 	}
 
 	void write_start_type_list() {
-		auto listName = oak::sub_slice(output->outputFilename, 0, oak::find_first_of(output->outputFilename, oak::String{ "." }));
+		auto listName = oak::sub_slice(
+				output->outputFilename,
+				oak::find_last_of(output->outputFilename, oak::String{ "/" }) + 1,
+				oak::find_first_of(output->outputFilename, oak::String{ "." }));
 		oak::buffer_fmt(typeListStringBuffer, "constexpr TypeInfo const* typeList_%g[] = {\n", listName);
 	}
 
@@ -385,14 +400,15 @@ struct DeclConstexprSerializer : DeclSerializer {
 		oak::buffer_fmt(fb, typeListString);
 	}
 
-	void write_header(oak::Vector<oak::String> const& filenames) {
+	void write_header(oak::String buildDir, oak::Vector<oak::String> const& filenames) {
 		oak::FileBuffer fb{ file };
 		oak::buffer_fmt(fb, "#pragma once\n\n");
 
 		oak::buffer_fmt(fb, "#include <oak_reflect/type_info.h>\n");
 
 		for (auto const& fn : filenames) {
-			oak::buffer_fmt(fb, "#include <%g>\n", fn);
+			auto separatorStr = oak::find_last_of(buildDir, oak::String{ "/" }) != buildDir.count - 1 ? "/" : "";
+			oak::buffer_fmt(fb, "#include <%g%g%g>\n", buildDir, separatorStr, fn);
 		}
 
 		oak::buffer_fmt(fb, "\nnamespace oak {\n");

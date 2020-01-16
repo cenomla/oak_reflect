@@ -18,7 +18,7 @@ namespace oak {
 
 	i64 TypeCategory::type_index(TypeInfo const* typeInfo) const {
 		for (i64 i = 0; i < types.count; ++i) {
-			if (types[i] == typeInfo) {
+			if (types[i]->uid == typeInfo->uid) {
 				return i;
 			}
 		}
