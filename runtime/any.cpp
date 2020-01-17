@@ -111,18 +111,11 @@ namespace oak {
 	}
 
 	Any Any::shallow_copy(Allocator *allocator) const {
-		if (type->kind != TypeInfoKind::STRUCT && type->kind != TypeInfoKind::PRIMITIVE)
-			return Any{ nullptr, &Reflect<NoType>::typeInfo };
-
 		Any result;
 		result.type = type;
 		result.ptr = allocator->allocate(type_size(type), type_align(type));
 
-		if (type->kind == TypeInfoKind::STRUCT) {
-			copy_fields(result, *this);
-		} else {
-			std::memcpy(result.ptr, ptr, type_size(type));
-		}
+		std::memcpy(result.ptr, ptr, type_size(type));
 
 		return result;
 	}

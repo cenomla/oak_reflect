@@ -226,6 +226,7 @@ namespace oak {
 			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->size;
 			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->size;
 			case TypeInfoKind::ENUM: return type_size(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+			case TypeInfoKind::POINTER: return sizeof(void*);
 			default: return 0;
 		}
 	}
@@ -236,6 +237,7 @@ namespace oak {
 			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->align;
 			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->align;
 			case TypeInfoKind::ENUM: return type_align(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+			case TypeInfoKind::POINTER: return alignof(void*);
 			default: return 0;
 		}
 	}
