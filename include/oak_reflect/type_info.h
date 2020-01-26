@@ -163,13 +163,13 @@ namespace oak {
 	// Meta-generated types:
 
 	template<typename T>
-	struct Reflect<T, std::enable_if_t<std::is_pointer_v<std::decay_t<T>>, std::true_type>> {
-		static constexpr PointerTypeInfo typeInfo{ { 0, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer_t<std::decay_t<T>>>::typeInfo };
+	struct Reflect<T, std::enable_if_t<std::is_pointer_v<std::remove_cv_t<std::remove_reference_t<T>>>, std::true_type>> {
+		static constexpr PointerTypeInfo typeInfo{ { 0, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer_t<std::remove_cv_t<std::remove_reference_t<T>>>>::typeInfo };
 	};
 
 	template<typename T>
-	struct Reflect<T, std::enable_if_t<std::is_array_v<std::decay_t<T>>, std::true_type>> {
-		static constexpr ArrayTypeInfo typeInfo{ { 0, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<std::decay_t<T>>>::typeInfo, std::extent_v<std::decay_t<T>> };
+	struct Reflect<T, std::enable_if_t<std::is_array_v<std::remove_cv_t<std::remove_reference_t<T>>>, std::true_type>> {
+		static constexpr ArrayTypeInfo typeInfo{ { 0, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<std::remove_cv_t<std::remove_reference_t<T>>>>::typeInfo, std::extent_v<std::remove_cv_t<std::remove_reference_t<T>>> };
 	};
 
 	namespace detail {
@@ -227,6 +227,8 @@ namespace oak {
 			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->size;
 			case TypeInfoKind::ENUM: return type_size(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
 			case TypeInfoKind::POINTER: return sizeof(void*);
+			case TypeInfoKind::ARRAY: return type_size(static_cast<ArrayTypeInfo const*>(typeInfo)->of)
+									  * static_cast<ArrayTypeInfo const*>(typeInfo)->count;
 			default: return 0;
 		}
 	}
@@ -238,6 +240,7 @@ namespace oak {
 			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->align;
 			case TypeInfoKind::ENUM: return type_align(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
 			case TypeInfoKind::POINTER: return alignof(void*);
+			case TypeInfoKind::ARRAY: return type_align(static_cast<ArrayTypeInfo const*>(typeInfo)->of);
 			default: return 0;
 		}
 	}

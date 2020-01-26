@@ -120,6 +120,16 @@ namespace oak {
 		return result;
 	}
 
+	Any Any::deep_copy(Allocator *allocator) const {
+		Any result;
+		result.type = type;
+		result.ptr = allocator->allocate(type_size(type), type_align(type));
+
+		copy_deep(result, *this, allocator);
+
+		return result;
+	}
+
 	bool operator==(Any const& lhs, Any const& rhs) noexcept {
 		if (lhs.type != rhs.type) {
 			return false;
@@ -228,6 +238,32 @@ namespace oak {
 					}
 				}
 			}
+		}
+	}
+
+	void copy_deep(Any dst, Any src, Allocator *allocator) {
+		assert(dst.type && src.type);
+
+		if (dst.type->kind == TypeInfoKind::STRUCT && !has_attribute(dst.type, "primitive")) {
+			if (has_attribute(dst.type, "array")) {
+				auto count = src.get_member("count");
+				if (count.to_value<i64>()) {
+					dst.get_member("count").to_value<i64>() = count.to_value<i64>();
+					auto elem0 = src.get_element(0);
+					dst.get_member("data").to_value<void*>() = allocator->allocate(
+							type_size(elem0.type) * count.to_value<i64>(), type_align(elem0.type));
+					for (i64 i = 0; i < count.to_value<i64>(); ++i) {
+						copy_deep(dst.get_element(i), src.get_element(i), allocator);
+					}
+				}
+			} else {
+				auto si = static_cast<StructTypeInfo const*>(dst.type);
+				for (auto field : si->fields) {
+					copy_deep(dst.get_member(&field), src.get_member(&field), allocator);
+				}
+			}
+		} else {
+			std::memcpy(dst.ptr, src.ptr, type_size(dst.type));
 		}
 	}
 

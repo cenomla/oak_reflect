@@ -34,6 +34,7 @@ namespace oak {
 		u64 get_enum_value() const noexcept;
 
 		Any shallow_copy(Allocator *allocator) const;
+		Any deep_copy(Allocator *allocator) const;
 
 	};
 
@@ -44,5 +45,6 @@ namespace oak {
 	}
 
 	void copy_fields(Any dst, Any src);
+	void copy_deep(Any dst, Any src, Allocator *allocator);
 }
 
