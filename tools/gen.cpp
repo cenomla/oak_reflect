@@ -583,7 +583,7 @@ void ast_matcher(CLIArgs *args, cltool::ClangTool &tool) {
 cltool::CommandLineArguments reflectDefineAdjuster(cltool::CommandLineArguments const& args, cltool::StringRef filename) {
 	auto result = args;
 	result.emplace_back("-D__OSIG__");
-	result.emplace_back("-I/usr/lib/gcc/x86_64-pc-linux-gnu/9.2.0/include");
+	result.emplace_back("-I/usr/lib/gcc/x86_64-pc-linux-gnu/9.2.1/include");
 	return result;
 }
 
