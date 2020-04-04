@@ -295,7 +295,13 @@ struct DeclConstexprSerializer : DeclSerializer {
 		if (decl->getTemplateSpecializationKind() != 0) {
 			auto specialization = static_cast<cltool::ClassTemplateSpecializationDecl const*>(decl);
 			oak::buffer_fmt(sb, "<");
+			bool first = true;
 			for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
+				if (!first) {
+					// Add comma's to the template argument list
+					oak::buffer_fmt(sb, ", ");
+				}
+				first = false;
 				auto kind = arg.getKind();
 				switch (kind) {
 					case clang::TemplateArgument::Type:
@@ -583,7 +589,9 @@ void ast_matcher(CLIArgs *args, cltool::ClangTool &tool) {
 cltool::CommandLineArguments reflectDefineAdjuster(cltool::CommandLineArguments const& args, cltool::StringRef filename) {
 	auto result = args;
 	result.emplace_back("-D__OSIG__");
-	result.emplace_back("-I/usr/lib/gcc/x86_64-pc-linux-gnu/9.2.1/include");
+	// TODO: This breaks on every compiler update and is not portable, fix it lulz, I have probably spent 8+ hours debugging
+	// this line of code over the past two years
+	result.emplace_back("-I/usr/lib/gcc/x86_64-pc-linux-gnu/9.3.0/include");
 	return result;
 }
 
