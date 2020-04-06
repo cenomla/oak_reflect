@@ -166,62 +166,7 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 		if (!isInMainFile || record->isDependentType())
 			return;
 
-		// Always insert records before their topmost enclosing declaration and any structs whose fields reference this type
-		i64 insertIndex = decls.count;
-		for (i64 i = 0; i < decls.count; ++i) {
-			auto const& decl = decls[i];
-			if (decl->isRecord()) {
-				auto recordDecl = static_cast<cltool::CXXRecordDecl const*>(decl);
-				if (recordDecl->getTemplateSpecializationKind() != 0) {
-					auto specialization = static_cast<cltool::ClassTemplateSpecializationDecl const*>(recordDecl);
-					for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
-						auto kind = arg.getKind();
-						switch (kind) {
-							case clang::TemplateArgument::Type:
-								{
-									auto type = arg.getAsType().getTypePtr();
-									if (type->isRecordType()) {
-										if (record == type->getAsCXXRecordDecl()) {
-											insertIndex = i;
-										}
-									} if (type->isPointerType()) {
-										auto pointeeType = static_cast<clang::PointerType const*>(type)
-											->getPointeeType().getTypePtr();
-										if (pointeeType->isRecordType()) {
-											if (record == pointeeType->getAsCXXRecordDecl()) {
-												insertIndex = i;
-											}
-										}
-									}
-								} break;
-							default:
-								break;
-						}
-					}
-				}
-			}
-			/*
-			if (decl->isRecord()) {
-				for (auto const& field : recordDecl->fields()) {
-					auto const& type = field->getType();
-					if (type->isRecordType()) {
-						type->dump();
-						if (type->getAsCXXRecordDecl()->getDefinition() == record) {
-							insertIndex = i;
-							break;
-						}
-					}
-				}
-			}
-			*/
-			if (decl->Encloses(record)) {
-				insertIndex = i;
-			}
-			if (insertIndex != decls.count) {
-				break;
-			}
-		}
-		decls.insert(allocator, record, insertIndex);
+		add_decl(record);
 	}
 
 	void parse_enum(cltool::EnumDecl const *enumeration) {
@@ -231,7 +176,78 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 		if (!isInMainFile)
 			return;
 
-		decls.push(allocator, enumeration);
+		add_decl(enumeration);
+	}
+
+	void add_decl(cltool::TagDecl const *declToAdd) {
+		decls.push(allocator, declToAdd);
+	}
+
+	void sort_decls() {
+		decltype(decls) tmpDecls;
+
+		bool swap;
+
+		do {
+			swap = false;
+			tmpDecls.resize(&oak::temporaryMemory, decls.count);
+			std::memcpy(tmpDecls.data, decls.data, sizeof(*decls.data) * decls.count);
+			decls.count = 0;
+			for (auto const& declToAdd : tmpDecls) {
+				// Always insert decls before their topmost enclosing declaration and any structs whose fields reference this type
+				i64 insertIndex = decls.count;
+				for (i64 i = 0; i < decls.count; ++i) {
+					auto const& decl = decls[i];
+					if (decl->isRecord()) {
+						auto recordDecl = static_cast<cltool::CXXRecordDecl const*>(decl);
+						if (recordDecl->getTemplateSpecializationKind() != 0) {
+							auto specialization = static_cast<cltool::ClassTemplateSpecializationDecl const*>(recordDecl);
+							for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
+								auto kind = arg.getKind();
+								switch (kind) {
+									case clang::TemplateArgument::Type:
+										{
+											auto type = arg.getAsType().getTypePtr();
+											if (type->isRecordType()) {
+												if (declToAdd == type->getAsTagDecl()) {
+													insertIndex = i;
+												}
+											} if (type->isPointerType()) {
+												auto pointeeType = static_cast<clang::PointerType const*>(type)
+													->getPointeeType().getTypePtr();
+												if (pointeeType->isRecordType()) {
+													if (declToAdd == pointeeType->getAsTagDecl()) {
+														insertIndex = i;
+													}
+												}
+											}
+										} break;
+									default:
+										break;
+								}
+							}
+						}
+						for (auto const& field : recordDecl->fields()) {
+							if (field->getType().getTypePtr()->getUnqualifiedDesugaredType()
+									== declToAdd->getTypeForDecl()->getUnqualifiedDesugaredType()) {
+								insertIndex = i;
+								break;
+							}
+						}
+					}
+					if (decl->Encloses(declToAdd)) {
+						insertIndex = i;
+					}
+					if (insertIndex != decls.count) {
+						break;
+					}
+				}
+				if (insertIndex != decls.count) {
+					swap = true;
+				}
+				decls.insert(allocator, declToAdd, insertIndex);
+			}
+		} while(swap);
 	}
 
 	void run(cltool::MatchFinder::MatchResult const& result) override {
@@ -254,6 +270,7 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 	}
 
 	void onEndOfTranslationUnit() override {
+		sort_decls();
 		serializer->serialize(this);
 		decls.clear();
 	}
