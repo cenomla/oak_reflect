@@ -116,6 +116,10 @@ namespace oak {
 		static constexpr TypeInfo typeInfo{ 1ul, TypeInfoKind::VOID };
 	};
 
+	template<> struct Reflect<char> {
+		static constexpr PrimitiveTypeInfo typeInfo{ { 13ul, TypeInfoKind::PRIMITIVE }, "char", sizeof(char), alignof(char) };
+	};
+
 	template<> struct Reflect<i8> {
 		static constexpr PrimitiveTypeInfo typeInfo{ { 2ul, TypeInfoKind::PRIMITIVE }, "int8", sizeof(i8), alignof(i8) };
 	};

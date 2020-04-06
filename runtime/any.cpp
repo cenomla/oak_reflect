@@ -49,8 +49,21 @@ namespace oak {
 			auto data = get_member("data");
 			auto count = get_member("count");
 			if (index < count.to_value<i64>()) {
-				auto pi = static_cast<PointerTypeInfo const*>(data.type);
-				return { add_ptr(data.to_value<void*>(), index * type_size(pi->to)), pi->to };
+				void *ptr;
+				TypeInfo const *elemType;
+				switch (data.type->kind) {
+					case TypeInfoKind::ARRAY:
+						ptr = data.ptr;
+						elemType = static_cast<ArrayTypeInfo const*>(data.type)->of;
+						break;
+					case TypeInfoKind::POINTER:
+						ptr = data.to_value<void*>();
+						elemType = static_cast<PointerTypeInfo const*>(data.type)->to;
+						break;
+					default:
+						assert(false && "Invalid element type");
+				}
+				return { add_ptr(ptr, index * type_size(elemType)), elemType };
 			}
 		}
 		return { nullptr, &Reflect<NoType>::typeInfo };
