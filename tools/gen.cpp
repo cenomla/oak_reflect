@@ -228,8 +228,10 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 							}
 						}
 						for (auto const& field : recordDecl->fields()) {
-							if (field->getType().getTypePtr()->getUnqualifiedDesugaredType()
-									== declToAdd->getTypeForDecl()->getUnqualifiedDesugaredType()) {
+							auto ft = field->getType().getTypePtr()->getUnqualifiedDesugaredType();
+							auto fpt = ft->isPointerType() ? ft->getPointeeType()->getUnqualifiedDesugaredType() : nullptr;
+							auto dt = declToAdd->getTypeForDecl()->getUnqualifiedDesugaredType();
+							if (ft == dt || fpt == dt) {
 								insertIndex = i;
 								break;
 							}
