@@ -13,12 +13,7 @@ if cxx.get_id() == 'msvc'
   ]
 else
   clang_deps = [
-    cxx.find_library('clangBasic'),
-    cxx.find_library('clangAST'),
-    cxx.find_library('clangASTMatchers'),
-    cxx.find_library('clangFrontend'),
-    cxx.find_library('clangTooling'),
-    cxx.find_library('clangSerialization'),
+    cxx.find_library('clang-cpp'),
     cxx.find_library('LLVM'),
   ]
 endif
