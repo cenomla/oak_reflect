@@ -11,6 +11,10 @@ namespace oak {
 		deallocate(allocator, types.data, capacity);
 	}
 
+	void TypeCategory::clear() {
+		types.count = 0;
+	}
+
 	void TypeCategory::add_type(TypeInfo const* typeInfo) {
 		assert(types.count < capacity);
 		types[types.count++] = typeInfo;

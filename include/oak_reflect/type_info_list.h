@@ -19,6 +19,8 @@ namespace oak {
 		void init(TypeCategoryCreateInfo const& createInfo);
 		void destroy(Allocator *allocator);
 
+		void clear();
+
 		void add_type(TypeInfo const *typeInfo);
 		i64 type_index(TypeInfo const *typeInfo) const;
 
