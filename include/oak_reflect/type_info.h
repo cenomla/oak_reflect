@@ -169,12 +169,19 @@ namespace oak {
 
 	template<typename T>
 	struct Reflect<T, std::enable_if_t<std::is_pointer_v<std::remove_cv_t<std::remove_reference_t<T>>>, std::true_type>> {
-		static constexpr PointerTypeInfo typeInfo{ { 0, TypeInfoKind::POINTER }, &Reflect<std::remove_pointer_t<std::remove_cv_t<std::remove_reference_t<T>>>>::typeInfo };
+		using PointeeType = std::remove_pointer_t<std::remove_cv_t<std::remove_reference_t<T>>>;
+		static constexpr PointerTypeInfo typeInfo{
+			{ Reflect<PointeeType>::typeInfo.uid ^ 0x1234123412341234, TypeInfoKind::POINTER },
+			&Reflect<PointeeType>::typeInfo };
 	};
 
 	template<typename T>
 	struct Reflect<T, std::enable_if_t<std::is_array_v<std::remove_cv_t<std::remove_reference_t<T>>>, std::true_type>> {
-		static constexpr ArrayTypeInfo typeInfo{ { 0, TypeInfoKind::ARRAY }, &Reflect<std::remove_extent_t<std::remove_cv_t<std::remove_reference_t<T>>>>::typeInfo, std::extent_v<std::remove_cv_t<std::remove_reference_t<T>>> };
+		using PointeeType = std::remove_extent_t<std::remove_cv_t<std::remove_reference_t<T>>>;
+		static constexpr ArrayTypeInfo typeInfo{
+			{ Reflect<PointeeType>::typeInfo.uid ^ 0x5678567856785678, TypeInfoKind::ARRAY },
+			&Reflect<PointeeType>::typeInfo,
+			std::extent_v<std::remove_cv_t<std::remove_reference_t<T>>> };
 	};
 
 	namespace detail {
