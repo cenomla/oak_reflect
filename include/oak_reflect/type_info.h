@@ -64,6 +64,7 @@ namespace oak {
 		String annotation;
 		u64 size;
 		u64 align;
+		TypeInfo const *base;
 		Slice<FieldInfo const> fields;
 		void (*defaultConstructFn)(void*);
 	};

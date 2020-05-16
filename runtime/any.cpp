@@ -183,7 +183,11 @@ namespace oak {
 			}
 			case TypeInfoKind::STRUCT:
 			{
-				if (has_attribute(lhs.type, "array")) {
+				if (has_attribute(lhs.type, "primitive")) {
+					// Treat as a primitive type
+					auto size = type_size(lhs.type);
+					return size == 0 || std::memcmp(lhs.ptr, rhs.ptr, size) == 0;
+				} else if (has_attribute(lhs.type, "array")) {
 					bool ret = true;
 					auto pi = static_cast<PointerTypeInfo const*>(lhs.get_member("data").type);
 					auto& data0 = lhs.get_member("data").to_value<void*>();
@@ -239,14 +243,19 @@ namespace oak {
 		for (auto field0 : si0->fields) {
 			for (auto field1 : si1->fields) {
 				if (field0.name == field1.name && !has_attribute(&field0, "volatile")) {
-					if (field0.typeInfo->kind == TypeInfoKind::STRUCT
+					if (field0.typeInfo->uid == field1.typeInfo->uid) {
+						auto size = type_size(field0.typeInfo);
+						if (size)
+							std::memcpy(
+									add_ptr(dst.ptr, field0.offset),
+									add_ptr(src.ptr, field1.offset),
+									type_size(field0.typeInfo));
+						break;
+					} else if (field0.typeInfo->kind == TypeInfoKind::STRUCT
 							&& field1.typeInfo->kind == TypeInfoKind::STRUCT) {
 						copy_fields(
 								{ add_ptr(dst.ptr, field0.offset), field0.typeInfo },
 								{ add_ptr(src.ptr, field1.offset), field1.typeInfo });
-						break;
-					} else if (field0.typeInfo->uid == field1.typeInfo->uid) {
-						std::memcpy(add_ptr(dst.ptr, field0.offset), add_ptr(src.ptr, field1.offset), type_size(field0.typeInfo));
 						break;
 					}
 				}

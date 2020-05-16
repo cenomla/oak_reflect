@@ -194,7 +194,7 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 			std::memcpy(tmpDecls.data, decls.data, sizeof(*decls.data) * decls.count);
 			decls.count = 0;
 			for (auto const& declToAdd : tmpDecls) {
-				// Always insert decls before their topmost enclosing declaration and any structs whose fields reference this type
+				// Always insert decls before their topmost enclosing declaration and any structs whose fields reference this type or who inherit from this type
 				i64 insertIndex = decls.count;
 				for (i64 i = 0; i < decls.count; ++i) {
 					auto const& decl = decls[i];
@@ -232,6 +232,14 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 							auto fpt = ft->isPointerType() ? ft->getPointeeType()->getUnqualifiedDesugaredType() : nullptr;
 							auto dt = declToAdd->getTypeForDecl()->getUnqualifiedDesugaredType();
 							if (ft == dt || fpt == dt) {
+								insertIndex = i;
+								break;
+							}
+						}
+						for (auto const& base : recordDecl->bases()) {
+							auto bt = base.getType().getTypePtr()->getUnqualifiedDesugaredType();
+							auto dt = declToAdd->getTypeForDecl()->getUnqualifiedDesugaredType();
+							if (bt == dt) {
 								insertIndex = i;
 								break;
 							}
@@ -463,22 +471,62 @@ struct DeclConstexprSerializer : DeclSerializer {
 		oak::buffer_fmt(fb, "\tusing T = %g%g;\n", namespaceName, specializationName);
 
 		bool hasFields = false;
-		for (auto const field : decl->fields()) {
+		for (auto const& field : decl->fields()) {
 			auto fanno = get_annotation_string(field);
 			if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
 				hasFields = true;
 				break;
 			}
 		}
-		for (auto const func : decl->methods()) {
+		for (auto const& func : decl->methods()) {
 			auto fanno = get_annotation_string(func);
 			if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
 				hasFields = true;
 				break;
 			}
 		}
+		for (auto const& base : decl->bases()) {
+			auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
+			for (auto const& field : bDecl->fields()) {
+				auto fanno = get_annotation_string(field);
+				if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
+					hasFields = true;
+					break;
+				}
+			}
+			for (auto const& func : bDecl->methods()) {
+				auto fanno = get_annotation_string(func);
+				if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
+					hasFields = true;
+					break;
+				}
+			}
+		}
 		if (hasFields) {
 			oak::buffer_fmt(fb, "\tstatic constexpr FieldInfo fields[] = {\n");
+			for (auto const& base : decl->bases()) {
+				auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
+				for (auto const field : bDecl->fields()) {
+					auto const& fname = field->getDeclName().getAsString();
+					auto fanno = get_annotation_string(field);
+					if (oak::find_slice(fanno, oak::String{ "reflect" }) != 0)
+						continue;
+					oak::buffer_fmt(
+							oak::FileBuffer{ file },
+							"\t\t{ \"%g\", \"%g\", &Reflect<decltype(T::%g)>::typeInfo, offsetof(T, %g)},\n",
+							fname, fanno, fname, fname);
+				}
+				for (auto const func : bDecl->methods()) {
+					auto const& fname = func->getNameInfo().getAsString();
+					auto fanno = get_annotation_string(func);
+					if (oak::find_slice(fanno, oak::String{ "reflect" }) != 0)
+						continue;
+					oak::buffer_fmt(
+							oak::FileBuffer{ file },
+							"\t\t{ \"%g\", \"%g\", &Reflect<decltype(&T::%g)>::typeInfo, 0},\n",
+							fname, fanno, fname);
+				}
+			}
 			for (auto const field : decl->fields()) {
 				auto const& fname = field->getDeclName().getAsString();
 				auto fanno = get_annotation_string(field);
@@ -513,13 +561,29 @@ struct DeclConstexprSerializer : DeclSerializer {
 					annotation,
 					hasFields ? "fields" : "{}");
 		} else if (decl->isClass() || decl->isStruct()) {
-			oak::buffer_fmt(fb,
-					"\tstatic constexpr StructTypeInfo typeInfo{ { %gul, TypeInfoKind::STRUCT }"
-					", \"%g\", \"%g\", sizeof(T), alignof(T), %g, &detail::generic_construct<T> };\n",
-					typeId,
-					specializationName,
-					annotation,
-					hasFields ? "fields" : "{}");
+			// Get the first base
+			if (decl->getNumBases()) {
+				auto base = decl->bases_begin()->getType().getTypePtr()->getAsCXXRecordDecl();
+				auto baseName = get_specialization_name(base);
+				auto baseNamespaceName = get_namespace_name(base);
+				oak::buffer_fmt(fb,
+						"\tstatic constexpr StructTypeInfo typeInfo{ { %gul, TypeInfoKind::STRUCT }"
+						", \"%g\", \"%g\", sizeof(T), alignof(T), &Reflect<%g%g>::typeInfo, %g, &detail::generic_construct<T> };\n",
+						typeId,
+						specializationName,
+						annotation,
+						baseNamespaceName,
+						baseName,
+						hasFields ? "fields" : "{}");
+			} else {
+				oak::buffer_fmt(fb,
+						"\tstatic constexpr StructTypeInfo typeInfo{ { %gul, TypeInfoKind::STRUCT }"
+						", \"%g\", \"%g\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, %g, &detail::generic_construct<T> };\n",
+						typeId,
+						specializationName,
+						annotation,
+						hasFields ? "fields" : "{}");
+			}
 		}
 		oak::buffer_fmt(fb, "};\n");
 	}
