@@ -19,6 +19,7 @@
 
 #include <oak_util/types.h>
 #include <oak_util/containers.h>
+#include <oak_util/algorithm.h>
 #include <oak_util/memory.h>
 #include <oak_util/fmt.h>
 
@@ -550,7 +551,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 			oak::buffer_fmt(fb, "\t};\n");
 		}
 
-		auto typeId = oak::HashFn<oak::String>{}(specializationName);
+		auto typeId = oak::hash_combine(oak::HashFn<oak::String>{}(namespaceName), oak::HashFn<oak::String>{}(specializationName));
 
 		if (decl->isUnion()) {
 			oak::buffer_fmt(fb,
@@ -616,7 +617,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 
 		auto const& underlyingTypeName = decl->getIntegerType().getAsString();
 
-		auto typeId = oak::HashFn<oak::String>{}(enumName);
+		auto typeId = oak::hash_combine(oak::HashFn<oak::String>{}(namespaceName), oak::HashFn<oak::String>{}(enumName));
 
 		oak::buffer_fmt(fb,
 				"\tstatic constexpr EnumTypeInfo typeInfo{ { %gul, TypeInfoKind::ENUM }"
