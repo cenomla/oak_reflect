@@ -5,7 +5,7 @@
 
 namespace oak {
 
-	struct _reflect() Any {
+	struct _reflect() OAK_REFLECT_API Any {
 		void *ptr = nullptr;
 		TypeInfo const *type = nullptr;
 
@@ -38,13 +38,13 @@ namespace oak {
 
 	};
 
-	bool operator==(Any const& lhs, Any const& rhs) noexcept;
+	OAK_REFLECT_API bool operator==(Any const& lhs, Any const& rhs) noexcept;
 
 	inline bool operator!=(Any const& lhs, Any const& rhs) noexcept {
 		return !(lhs == rhs);
 	}
 
-	void copy_fields(Any dst, Any src);
-	void copy_deep(Any dst, Any src, Allocator *allocator);
+	OAK_REFLECT_API void copy_fields(Any dst, Any src);
+	OAK_REFLECT_API void copy_deep(Any dst, Any src, Allocator *allocator);
 }
 

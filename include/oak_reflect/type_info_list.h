@@ -12,7 +12,7 @@ namespace oak {
 		i64 typeCapacity = 0;
 	};
 
-	struct TypeCategory {
+	struct OAK_REFLECT_API TypeCategory {
 		Slice<TypeInfo const*> types;
 		i64 capacity = 0;
 

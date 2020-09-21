@@ -5,6 +5,18 @@
 #include <oak_util/types.h>
 #include <oak_util/fmt.h>
 
+#undef VOID
+
+#ifdef _MSC_VER
+#ifdef OAK_REFLECT_EXPORT_SYMBOLS
+#define OAK_REFLECT_API __declspec(dllexport)
+#else
+#define OAK_REFLECT_API __declspec(dllimport)
+#endif // OAK_REFLECT_EXPORT_SYMBOLS
+#else
+#define OAK_REFLECT_API
+#endif // _MSC_VER
+
 namespace oak {
 
 	namespace detail {

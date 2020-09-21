@@ -1,3 +1,5 @@
+#define OAK_REFLECT_EXPORT_SYMBOLS
+
 #include <oak_reflect/any.h>
 
 #include <cstring>

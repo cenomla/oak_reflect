@@ -1,3 +1,5 @@
+#define OAK_REFLECT_EXPORT_SYMBOLS
+
 #include <oak_reflect/type_info_list.h>
 
 namespace oak {
