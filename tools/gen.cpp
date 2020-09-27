@@ -23,6 +23,10 @@
 #include <oak_util/memory.h>
 #include <oak_util/fmt.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif // _WIN32
+
 namespace cltool {
 	using namespace clang::ast_matchers;
 	using namespace clang::tooling;
@@ -77,6 +81,14 @@ namespace {
 				}
 				result.outputs.push(allocator, output);
 			}
+			// Wait for the windows debugger to attach
+#ifdef _WIN32
+			if (oak::find_slice(oak::String{ argv[i] }, oak::String{ "--wait-for-debug" }) == 0) {
+				while (!::IsDebuggerPresent())
+					::Sleep(100);
+			}
+#endif
+
 		}
 
 		return result;
@@ -698,3 +710,4 @@ int main(int argc, char const *const *argv) {
 
 	return 0;
 }
+
