@@ -685,11 +685,14 @@ void ast_matcher(CLIArgs *args, cltool::ClangTool &tool) {
 cltool::CommandLineArguments reflectDefineAdjuster(cltool::CommandLineArguments const& args, cltool::StringRef filename) {
 	auto result = args;
 	result.emplace_back("-D__OSIG__");
-	result.emplace_back("--std=c++17");
+#ifdef _MSC_VER
 	result.emplace_back("/std:c++17");
+#else
+	result.emplace_back("--std=c++17");
 	// TODO: This breaks on every compiler update and is not portable, fix it lulz, I have probably spent 8+ hours debugging
 	// this line of code over the past two years
-	//result.emplace_back("-I/usr/lib/gcc/x86_64-pc-linux-gnu/9.3.0/include");
+	result.emplace_back("-I/usr/lib/gcc/x86_64-pc-linux-gnu/10.2.0/include");
+#endif
 	return result;
 }
 
