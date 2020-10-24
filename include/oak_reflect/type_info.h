@@ -294,6 +294,7 @@ namespace oak {
 						if (str == attribute) {
 							return true;
 						}
+						break;
 					}
 				}
 				i = j;
