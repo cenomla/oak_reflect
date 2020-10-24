@@ -320,6 +320,10 @@ namespace oak {
 		return attribute_in_annotation(fieldInfo->annotation, attribute);
 	}
 
+	constexpr PointerTypeInfo pointer_type_info_to_type(TypeInfo const *typeInfo) {
+		return { { typeInfo->uid ^ 0x1234123412341234, TypeInfoKind::POINTER }, typeInfo };
+	}
+
 	template<typename T>
 	constexpr String enum_name(T e, TypeInfo const *typeInfo) {
 		if (typeInfo->kind == TypeInfoKind::ENUM) {
