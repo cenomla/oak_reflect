@@ -9,11 +9,14 @@
 
 namespace oak {
 
-	Any Any::get_member(String name) noexcept {
+	Any Any::get_member(String name, FieldInfo const ** info) noexcept {
 		if (type->kind == TypeInfoKind::STRUCT) {
 			auto si = static_cast<StructTypeInfo const*>(type);
 			for (auto field : si->fields) {
 				if (field.name == name) {
+					if (info) {
+						*info = &field;
+					}
 					return { add_ptr(ptr, field.offset), field.typeInfo };
 				}
 			}
@@ -21,11 +24,14 @@ namespace oak {
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
 
-	Any Any::get_member(String name) const noexcept {
+	Any Any::get_member(String name, FieldInfo const ** info) const noexcept {
 		if (type->kind == TypeInfoKind::STRUCT) {
 			auto si = static_cast<StructTypeInfo const*>(type);
 			for (auto field : si->fields) {
 				if (field.name == name) {
+					if (info) {
+						*info = &field;
+					}
 					return { add_ptr(ptr, field.offset), field.typeInfo };
 				}
 			}

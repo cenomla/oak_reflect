@@ -12,8 +12,8 @@ namespace oak {
 		Any() = default;
 		Any(void *ptr_, TypeInfo const *type_) : ptr{ ptr_ }, type{ type_ } {}
 
-		Any get_member(String name) noexcept;
-		Any get_member(String name) const noexcept;
+		Any get_member(String name, FieldInfo const ** info = nullptr) noexcept;
+		Any get_member(String name, FieldInfo const ** info = nullptr) const noexcept;
 		Any get_member(FieldInfo const *info) noexcept;
 		Any get_member(FieldInfo const *info) const noexcept;
 		Any get_element(i64 index) noexcept;
