@@ -1,2 +1,3 @@
 option('build_example', type: 'boolean', value: false)
 option('optimize_tools', type: 'boolean', value: false)
+option('llvm_install_dir', type: 'string', value: 'C:\Program Files (x86)\LLVM')

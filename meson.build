@@ -8,31 +8,34 @@ oak_util = subproject('oak_util')
 oak_util_dep = oak_util.get_variable('oak_util_dep')
 
 if host_machine.system() == 'windows'
-  clang_includes = [ include_directories('C:\Program Files (x86)\LLVM\include', is_system: true) ]
+  llvm_include_dir = join_paths(get_option('llvm_install_dir'), 'include')
+  llvm_lib_dir = join_paths(get_option('llvm_install_dir'), 'lib')
+
+  clang_includes = [ include_directories(llvm_include_dir, is_system: true) ]
   clang_deps = [
-    cxx.find_library('clangEdit', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangAnalysis', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangAST', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangASTMatchers', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangBasic', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangDriver', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangFrontend', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangLex', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangParse', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangSema', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangSerialization', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('clangTooling', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMSupport', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMCore', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMRemarks', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMOption', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMBinaryFormat', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMBitstreamReader', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMMC', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMMCParser', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMProfileData', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMFrontendOpenMP', dirs: 'C:\Program Files (x86)\LLVM\lib'),
-    cxx.find_library('LLVMDemangle', dirs: 'C:\Program Files (x86)\LLVM\lib'),
+    cxx.find_library('clangEdit', dirs: llvm_lib_dir),
+    cxx.find_library('clangAnalysis', dirs: llvm_lib_dir),
+    cxx.find_library('clangAST', dirs: llvm_lib_dir),
+    cxx.find_library('clangASTMatchers', dirs: llvm_lib_dir),
+    cxx.find_library('clangBasic', dirs: llvm_lib_dir),
+    cxx.find_library('clangDriver', dirs: llvm_lib_dir),
+    cxx.find_library('clangFrontend', dirs: llvm_lib_dir),
+    cxx.find_library('clangLex', dirs: llvm_lib_dir),
+    cxx.find_library('clangParse', dirs: llvm_lib_dir),
+    cxx.find_library('clangSema', dirs: llvm_lib_dir),
+    cxx.find_library('clangSerialization', dirs: llvm_lib_dir),
+    cxx.find_library('clangTooling', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMSupport', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMCore', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMRemarks', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMOption', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMBinaryFormat', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMBitstreamReader', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMMC', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMMCParser', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMProfileData', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMFrontendOpenMP', dirs: llvm_lib_dir),
+    cxx.find_library('LLVMDemangle', dirs: llvm_lib_dir),
     cxx.find_library('Version'),
   ]
 else
