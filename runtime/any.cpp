@@ -12,7 +12,7 @@ namespace oak {
 	Any Any::get_member(String name, FieldInfo const ** info) noexcept {
 		if (type->kind == TypeInfoKind::STRUCT) {
 			auto si = static_cast<StructTypeInfo const*>(type);
-			for (auto field : si->fields) {
+			for (auto& field : si->fields) {
 				if (field.name == name) {
 					if (info) {
 						*info = &field;
@@ -27,7 +27,7 @@ namespace oak {
 	Any Any::get_member(String name, FieldInfo const ** info) const noexcept {
 		if (type->kind == TypeInfoKind::STRUCT) {
 			auto si = static_cast<StructTypeInfo const*>(type);
-			for (auto field : si->fields) {
+			for (auto& field : si->fields) {
 				if (field.name == name) {
 					if (info) {
 						*info = &field;
@@ -56,22 +56,26 @@ namespace oak {
 		} else if (has_attribute(type, "array")) {
 			auto data = get_member("data");
 			auto count = get_member("count");
+
+			void *ptr;
+			TypeInfo const *elemType;
+			switch (data.type->kind) {
+				case TypeInfoKind::ARRAY:
+					ptr = data.ptr;
+					elemType = static_cast<ArrayTypeInfo const*>(data.type)->of;
+					break;
+				case TypeInfoKind::POINTER:
+					ptr = data.to_value<void*>();
+					elemType = static_cast<PointerTypeInfo const*>(data.type)->to;
+					break;
+				default:
+					assert(false && "Invalid element type");
+			}
+
 			if (index < count.to_value<i64>()) {
-				void *ptr;
-				TypeInfo const *elemType;
-				switch (data.type->kind) {
-					case TypeInfoKind::ARRAY:
-						ptr = data.ptr;
-						elemType = static_cast<ArrayTypeInfo const*>(data.type)->of;
-						break;
-					case TypeInfoKind::POINTER:
-						ptr = data.to_value<void*>();
-						elemType = static_cast<PointerTypeInfo const*>(data.type)->to;
-						break;
-					default:
-						assert(false && "Invalid element type");
-				}
 				return { add_ptr(ptr, index * type_size(elemType)), elemType };
+			} else {
+				return { nullptr, elemType };
 			}
 		}
 		return { nullptr, &Reflect<NoType>::typeInfo };
