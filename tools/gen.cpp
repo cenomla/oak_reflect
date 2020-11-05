@@ -307,12 +307,16 @@ struct DeclConstexprSerializer : DeclSerializer {
 
 	oak::Slice<char> typeListString;
 	oak::StringBuffer typeListStringBuffer;
+	oak::HashSet<oak::String> writtenDeclNames;
 
 	void init(CLIArgOutput *output_) {
 		output = output_;
 		if (!file) {
 			file = std::fopen(oak::as_c_str(output->outputFilename), "wb");
 		}
+
+		writtenDeclNames.init(&oak::temporaryMemory, 10000);
+
 		write_header(output->buildDir, output->inputFilenames);
 
 		typeListStringBuffer = oak::StringBuffer{ &oak::temporaryMemory, &typeListString, 0 };
@@ -650,12 +654,28 @@ struct DeclConstexprSerializer : DeclSerializer {
 		for (auto const& decl : finder->decls) {
 			if (decl->isEnum()) {
 				auto enumDecl = static_cast<cltool::EnumDecl const*>(decl);
+				auto declName = fmt(&oak::temporaryMemory, "%g%g",
+									get_namespace_name(enumDecl),
+									get_enum_name(enumDecl));
+				if (writtenDeclNames.find(declName) != -1) {
+					// This decl was alread written, so skip it
+					continue;
+				}
 				write_parsed_enum(enumDecl);
 				write_enum_type_list_item(enumDecl);
+				writtenDeclNames.insert(declName);
 			} else {
 				auto recordDecl = static_cast<cltool::CXXRecordDecl const*>(decl);
+				auto declName = fmt(&oak::temporaryMemory, "%g%g",
+									get_namespace_name(recordDecl),
+									get_specialization_name(recordDecl));
+				if (writtenDeclNames.find(declName) != -1) {
+					// This decl was alread written, so skip it
+					continue;
+				}
 				write_parsed_record(recordDecl);
 				write_record_type_list_item(recordDecl);
+				writtenDeclNames.insert(declName);
 			}
 		}
 	}
