@@ -297,7 +297,7 @@ namespace oak {
 						break;
 					}
 				}
-				i = j;
+				i = j - 1;
 			}
 		}
 

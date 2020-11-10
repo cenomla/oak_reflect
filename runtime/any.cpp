@@ -261,7 +261,7 @@ namespace oak {
 							std::memcpy(
 									add_ptr(dst.ptr, field0.offset),
 									add_ptr(src.ptr, field1.offset),
-									type_size(field0.typeInfo));
+									size);
 						break;
 					} else if (field0.typeInfo->kind == TypeInfoKind::STRUCT
 							&& field1.typeInfo->kind == TypeInfoKind::STRUCT) {
