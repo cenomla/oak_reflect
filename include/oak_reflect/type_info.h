@@ -71,6 +71,14 @@ namespace oak {
 		i64 offset;
 	};
 
+	struct MethodInfo {
+		String name;
+		String symbolName;
+		String annotation;
+		TypeInfo const *typeInfo;
+		i64 virtualOffset;
+	};
+
 	struct StructTypeInfo : TypeInfo {
 		String name;
 		String annotation;
@@ -78,6 +86,7 @@ namespace oak {
 		u64 align;
 		TypeInfo const *base;
 		Slice<FieldInfo const> fields;
+		Slice<MethodInfo const> methods;
 		void (*defaultConstructFn)(void*);
 	};
 
@@ -201,6 +210,13 @@ namespace oak {
 		template<typename T>
 		struct FunctionReflectionData;
 
+		template<typename Out>
+		struct FunctionReflectionData<Out()> {
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+
+			static constexpr Slice<TypeInfo const* const> argTypeInfos{};
+		};
+
 		template<typename Out, typename... In>
 		struct FunctionReflectionData<Out(In...)> {
 			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
@@ -212,6 +228,15 @@ namespace oak {
 
 		template<typename T>
 		struct MemberFunctionReflectionData;
+
+		template<typename T, typename Out>
+		struct MemberFunctionReflectionData<Out (T::*)()> {
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+
+			static constexpr Slice<TypeInfo const* const> argTypeInfos{};
+
+			//static constexpr TypeInfo const* classTypeInfo = &Reflect<T>::typeInfo;
+		};
 
 		template<typename T, typename Out, typename... In>
 		struct MemberFunctionReflectionData<Out (T::*)(In...)> {
@@ -279,11 +304,13 @@ namespace oak {
 		}
 	}
 
+	OAK_REFLECT_API bool attribute_value_in_annotation(String annotation, String attribute, String *value = nullptr);
+
 	constexpr bool attribute_in_annotation(String annotation, String attribute) {
 		if (annotation.count <= attribute.count)
 			return false;
 
-		// TODO(SIMD): Make this simd
+		// TODO: Optimize this function using SIMD
 		i64 end = annotation.count;
 		for (i64 i = 0; i < end; ++i) {
 			if (annotation[i] == ';' || annotation[i] == ',') {

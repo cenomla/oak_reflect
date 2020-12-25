@@ -7,6 +7,7 @@
 #include <clang/AST/AST.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/ASTConsumer.h>
+#include <clang/AST/Mangle.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
@@ -330,7 +331,12 @@ struct DeclConstexprSerializer : DeclSerializer {
 		std::fclose(file);
 	}
 
-	oak::String get_specialization_name(cltool::CXXRecordDecl const* decl) {
+	oak::String get_mangled_name(cltool::Decl const *decl) {
+		cltool::ASTNameGenerator nameGen{ decl->getASTContext() };
+		return fmt(&oak::temporaryMemory, "%g", nameGen.getName(decl));
+	}
+
+	oak::String get_specialization_name(cltool::CXXRecordDecl const *decl) {
 
 		oak::Slice<char> specializationName;
 		oak::StringBuffer sb{ &oak::temporaryMemory, &specializationName, 0 };
@@ -488,6 +494,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		oak::buffer_fmt(fb, "\tusing T = %g%g;\n", namespaceName, specializationName);
 
 		bool hasFields = false;
+		bool hasMethods = false;
 		for (auto const& field : decl->fields()) {
 			auto fanno = get_annotation_string(field);
 			if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
@@ -498,7 +505,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		for (auto const& func : decl->methods()) {
 			auto fanno = get_annotation_string(func);
 			if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
-				hasFields = true;
+				hasMethods = true;
 				break;
 			}
 		}
@@ -514,7 +521,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 			for (auto const& func : bDecl->methods()) {
 				auto fanno = get_annotation_string(func);
 				if (oak::find_slice(fanno, oak::String{ "reflect" }) == 0) {
-					hasFields = true;
+					hasMethods = true;
 					break;
 				}
 			}
@@ -533,16 +540,6 @@ struct DeclConstexprSerializer : DeclSerializer {
 							"\t\t{ \"%g\", \"%g\", &Reflect<decltype(T::%g)>::typeInfo, offsetof(T, %g)},\n",
 							fname, fanno, fname, fname);
 				}
-				for (auto const func : bDecl->methods()) {
-					auto const& fname = func->getNameInfo().getAsString();
-					auto fanno = get_annotation_string(func);
-					if (oak::find_slice(fanno, oak::String{ "reflect" }) != 0)
-						continue;
-					oak::buffer_fmt(
-							oak::FileBuffer{ file },
-							"\t\t{ \"%g\", \"%g\", &Reflect<decltype(&T::%g)>::typeInfo, 0},\n",
-							fname, fanno, fname);
-				}
 			}
 			for (auto const field : decl->fields()) {
 				auto const& fname = field->getDeclName().getAsString();
@@ -554,15 +551,34 @@ struct DeclConstexprSerializer : DeclSerializer {
 						"\t\t{ \"%g\", \"%g\", &Reflect<decltype(T::%g)>::typeInfo, offsetof(T, %g)},\n",
 						fname, fanno, fname, fname);
 			}
+			oak::buffer_fmt(fb, "\t};\n");
+		}
+		if (hasMethods) {
+			oak::buffer_fmt(fb, "\tstatic constexpr MethodInfo methods[] = {\n");
+			for (auto const& base : decl->bases()) {
+				auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
+				for (auto const func : bDecl->methods()) {
+					auto fname = func->getNameInfo().getAsString();
+					auto fmangledName = get_mangled_name(func);
+					auto fanno = get_annotation_string(func);
+					if (oak::find_slice(fanno, oak::String{ "reflect" }) != 0)
+						continue;
+					oak::buffer_fmt(
+							oak::FileBuffer{ file },
+							"\t\t{ \"%g\", \"%g\", \"%g\", &Reflect<decltype(&T::%g)>::typeInfo, 0},\n",
+							fname, fmangledName, fanno, fname);
+				}
+			}
 			for (auto const func : decl->methods()) {
-				auto const& fname = func->getNameInfo().getAsString();
+				auto fname = func->getNameInfo().getAsString();
+				auto fmangledName = get_mangled_name(func);
 				auto fanno = get_annotation_string(func);
 				if (oak::find_slice(fanno, oak::String{ "reflect" }) != 0)
 					continue;
 				oak::buffer_fmt(
 						oak::FileBuffer{ file },
-						"\t\t{ \"%g\", \"%g\", &Reflect<decltype(&T::%g)>::typeInfo, 0},\n",
-						fname, fanno, fname);
+						"\t\t{ \"%g\", \"%g\", \"%g\", &Reflect<decltype(&T::%g)>::typeInfo, 0},\n",
+						fname, fmangledName, fanno, fname);
 			}
 			oak::buffer_fmt(fb, "\t};\n");
 		}
@@ -585,21 +601,23 @@ struct DeclConstexprSerializer : DeclSerializer {
 				auto baseNamespaceName = get_namespace_name(base);
 				oak::buffer_fmt(fb,
 						"\tstatic constexpr StructTypeInfo typeInfo{ { %gul, TypeInfoKind::STRUCT }"
-						", \"%g\", \"%g\", sizeof(T), alignof(T), &Reflect<%g%g>::typeInfo, %g, &detail::generic_construct<T> };\n",
+						", \"%g\", \"%g\", sizeof(T), alignof(T), &Reflect<%g%g>::typeInfo, %g, %g, &detail::generic_construct<T> };\n",
 						typeId,
 						specializationName,
 						annotation,
 						baseNamespaceName,
 						baseName,
-						hasFields ? "fields" : "{}");
+						hasFields ? "fields" : "{}",
+						hasMethods ? "methods" : "{}");
 			} else {
 				oak::buffer_fmt(fb,
 						"\tstatic constexpr StructTypeInfo typeInfo{ { %gul, TypeInfoKind::STRUCT }"
-						", \"%g\", \"%g\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, %g, &detail::generic_construct<T> };\n",
+						", \"%g\", \"%g\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, %g, %g, &detail::generic_construct<T> };\n",
 						typeId,
 						specializationName,
 						annotation,
-						hasFields ? "fields" : "{}");
+						hasFields ? "fields" : "{}",
+						hasMethods ? "methods" : "{}");
 			}
 		}
 		oak::buffer_fmt(fb, "};\n");
