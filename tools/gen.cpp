@@ -128,7 +128,7 @@ namespace oak {
 
 oak::String get_annotation_string(cltool::Decl const *decl) {
 	oak::Slice<char> annotation;
-	oak::StringBuffer sbA{ &oak::temporaryMemory, &annotation, 0 };
+	oak::StringBuffer sbA{ oak::temporaryAllocator, &annotation, 0 };
 	for (auto const& attr : decl->attrs()) {
 		if (attr->getKind() == clang::attr::Annotate) {
 			cltool::SmallString<32> str;
@@ -204,7 +204,7 @@ struct DeclFinder : public cltool::MatchFinder::MatchCallback {
 
 		do {
 			swap = false;
-			tmpDecls.resize(&oak::temporaryMemory, decls.count);
+			tmpDecls.resize(oak::temporaryAllocator, decls.count);
 			std::memcpy(tmpDecls.data, decls.data, sizeof(*decls.data) * decls.count);
 			decls.count = 0;
 			for (auto const& declToAdd : tmpDecls) {
@@ -316,11 +316,11 @@ struct DeclConstexprSerializer : DeclSerializer {
 			file = std::fopen(oak::as_c_str(output->outputFilename), "wb");
 		}
 
-		writtenDeclNames.init(&oak::temporaryMemory, 10000);
+		writtenDeclNames.init(oak::temporaryAllocator, 10000);
 
 		write_header(output->buildDir, output->inputFilenames);
 
-		typeListStringBuffer = oak::StringBuffer{ &oak::temporaryMemory, &typeListString, 0 };
+		typeListStringBuffer = oak::StringBuffer{ oak::temporaryAllocator, &typeListString, 0 };
 		write_start_type_list();
 	}
 
@@ -333,13 +333,13 @@ struct DeclConstexprSerializer : DeclSerializer {
 
 	oak::String get_mangled_name(cltool::Decl const *decl) {
 		cltool::ASTNameGenerator nameGen{ decl->getASTContext() };
-		return fmt(&oak::temporaryMemory, "%g", nameGen.getName(decl));
+		return fmt(oak::temporaryAllocator, "%g", nameGen.getName(decl));
 	}
 
 	oak::String get_specialization_name(cltool::CXXRecordDecl const *decl) {
 
 		oak::Slice<char> specializationName;
-		oak::StringBuffer sb{ &oak::temporaryMemory, &specializationName, 0 };
+		oak::StringBuffer sb{ oak::temporaryAllocator, &specializationName, 0 };
 		oak::buffer_fmt(sb, "%g", decl->getName());
 
 		if (decl->getTemplateSpecializationKind() != 0) {
@@ -399,7 +399,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 
 	oak::String get_enum_name(cltool::EnumDecl const* decl) {
 		oak::Slice<char> enumName;
-		oak::StringBuffer sb{ &oak::temporaryMemory, &enumName, 0 };
+		oak::StringBuffer sb{ oak::temporaryAllocator, &enumName, 0 };
 		oak::buffer_fmt(sb, "%g", decl->getName());
 
 		return enumName;
@@ -411,11 +411,11 @@ struct DeclConstexprSerializer : DeclSerializer {
 		auto nsContext = decl->getParent();
 		while (nsContext) {
 			if (nsContext->isNamespace()) {
-				namespaceName = oak::fmt(&oak::temporaryMemory, "%g::%g",
+				namespaceName = oak::fmt(oak::temporaryAllocator, "%g::%g",
 						static_cast<cltool::NamespaceDecl const*>(nsContext)->getNameAsString(),
 						namespaceName);
 			} else if (nsContext->isRecord()) {
-				namespaceName = oak::fmt(&oak::temporaryMemory, "%g::%g",
+				namespaceName = oak::fmt(oak::temporaryAllocator, "%g::%g",
 						static_cast<cltool::RecordDecl const*>(nsContext)->getNameAsString(),
 						namespaceName);
 			}
@@ -672,7 +672,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 		for (auto const& decl : finder->decls) {
 			if (decl->isEnum()) {
 				auto enumDecl = static_cast<cltool::EnumDecl const*>(decl);
-				auto declName = fmt(&oak::temporaryMemory, "%g%g",
+				auto declName = fmt(oak::temporaryAllocator, "%g%g",
 									get_namespace_name(enumDecl),
 									get_enum_name(enumDecl));
 				if (writtenDeclNames.find(declName) != -1) {
@@ -684,7 +684,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 				writtenDeclNames.insert(declName);
 			} else {
 				auto recordDecl = static_cast<cltool::CXXRecordDecl const*>(decl);
-				auto declName = fmt(&oak::temporaryMemory, "%g%g",
+				auto declName = fmt(oak::temporaryAllocator, "%g%g",
 									get_namespace_name(recordDecl),
 									get_specialization_name(recordDecl));
 				if (writtenDeclNames.find(declName) != -1) {
@@ -703,7 +703,7 @@ void ast_matcher(CLIArgs *args, cltool::ClangTool &tool) {
 	DeclConstexprSerializer serializer;
 	serializer.init(&args->outputs[0]);
 
-	DeclFinder declFinder{ &oak::temporaryMemory, &serializer };
+	DeclFinder declFinder{ oak::temporaryAllocator, &serializer };
 	cltool::MatchFinder finder;
 
 	cltool::DeclarationMatcher classMatcher
@@ -736,10 +736,13 @@ cltool::CommandLineArguments reflectDefineAdjuster(cltool::CommandLineArguments 
 
 int main(int argc, char const *const *argv) {
 
-	oak::temporaryMemory = oak::globalAllocator;
+	oak::Allocator globalAllocator{ nullptr, oak::std_aligned_alloc_wrapper, oak::std_free_wrapper };
 
-	auto args = parse_args(&oak::temporaryMemory, argc, argv);
-	auto op = build_options_parser(&oak::temporaryMemory, &args, argv[0]);
+	oak::globalAllocator = &globalAllocator;
+	oak::temporaryAllocator = &globalAllocator;
+
+	auto args = parse_args(oak::temporaryAllocator, argc, argv);
+	auto op = build_options_parser(oak::temporaryAllocator, &args, argv[0]);
 
 	auto sourceList = op.getSourcePathList();
 	for (auto const& source : sourceList) {
