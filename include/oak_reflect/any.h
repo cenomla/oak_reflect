@@ -12,11 +12,9 @@ namespace oak {
 		Any() = default;
 		Any(void *ptr_, TypeInfo const *type_) : ptr{ ptr_ }, type{ type_ } {}
 
-		Any get_member(String name, FieldInfo const ** info = nullptr) noexcept;
 		Any get_member(String name, FieldInfo const ** info = nullptr) const noexcept;
-		Any get_member(FieldInfo const *info) noexcept;
 		Any get_member(FieldInfo const *info) const noexcept;
-		Any get_element(i64 index) noexcept;
+		Any get_element(i64 index) const noexcept;
 
 		void construct() noexcept;
 
@@ -35,16 +33,16 @@ namespace oak {
 
 		Any shallow_copy(Allocator *allocator) const;
 		Any deep_copy(Allocator *allocator) const;
-
 	};
 
-	OAK_REFLECT_API bool operator==(Any const& lhs, Any const& rhs) noexcept;
+	OAK_REFLECT_API bool operator==(Any lhs, Any rhs) noexcept;
 
-	inline bool operator!=(Any const& lhs, Any const& rhs) noexcept {
+	inline bool operator!=(Any lhs, Any rhs) noexcept {
 		return !(lhs == rhs);
 	}
 
 	OAK_REFLECT_API void copy_fields(Any dst, Any src);
+	// TODO: Fix copy deep
 	OAK_REFLECT_API void copy_deep(Any dst, Any src, Allocator *allocator);
 }
 
