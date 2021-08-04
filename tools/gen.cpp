@@ -77,11 +77,12 @@ bool decl_always_comes_before(clang::TagDecl const *lhs, clang::TagDecl const *r
 					case clang::TemplateArgument::Type:
 						{
 							auto type = arg.getAsType().getTypePtr();
-							if (type->isRecordType()) {
+							if (type->isRecordType() || type->isEnumeralType()) {
 								if (lhs == type->getAsTagDecl()) {
 									return true;
 								}
-							} if (type->isPointerType()) {
+							}
+							if (type->isPointerType()) {
 								auto pointeeType = static_cast<clang::PointerType const*>(type)
 									->getPointeeType().getTypePtr();
 								if (pointeeType->isRecordType()) {
