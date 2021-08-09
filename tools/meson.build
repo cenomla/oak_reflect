@@ -9,7 +9,7 @@ if get_option('optimize_tools')
   if host_machine.system() == 'windows'
     optimize_args = [ '/O2' ]
   else
-    optimize_args = [ '-O3', '-march=native' ]
+    optimize_args = [ '-O3', '-march=native', '-flto' ]
   endif
 endif
 
