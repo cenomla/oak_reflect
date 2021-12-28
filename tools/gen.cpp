@@ -67,9 +67,10 @@ bool should_reflect_decl(clang::Decl const *decl) {
 }
 
 bool decl_always_comes_before(clang::TagDecl const *lhs, clang::TagDecl const *rhs) {
+	// TODO: Needs to take arrays into consideration (ie. Vec2 points[2])
 	if (rhs->isRecord()) {
 		auto recordDecl = static_cast<clang::CXXRecordDecl const*>(rhs);
-		if (recordDecl->getTemplateSpecializationKind() != 0) {
+		if (isTemplateInstantiation(recordDecl->getTemplateSpecializationKind())) {
 			auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(recordDecl);
 			for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
 				auto kind = arg.getKind();
@@ -158,9 +159,8 @@ struct DeclFinder : public clang::ast_matchers::MatchFinder::MatchCallback {
 void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 	if (record->isDependentType())
 		return;
-
-	// Only reflect template type whose template type parameters are also being reflected
-	if (record->getTemplateSpecializationKind() != 0) {
+	if (clang::isTemplateInstantiation(record->getTemplateSpecializationKind())) {
+		// Only reflect template type whose template type parameters are also being reflected
 		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(record);
 		for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
 			auto kind = arg.getKind();
@@ -174,7 +174,8 @@ void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 
 						if (type->isRecordType() && !should_reflect_decl(type->getAsTagDecl())) {
 							return;
-						} if (type->isPointerType()) {
+						}
+						if (type->isPointerType()) {
 							auto pType = type->getPointeeType().getTypePtr();
 							if (pType->isRecordType() && !should_reflect_decl(pType->getAsTagDecl())) {
 								return;
@@ -191,12 +192,6 @@ void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 }
 
 void DeclFinder::parse_enum(clang::EnumDecl const *enumeration) {
-	auto sourceLoc = enumeration->getOuterLocStart();
-	auto isInMainFile = sourceManager->isWrittenInMainFile(sourceLoc);
-
-	if (!isInMainFile)
-		return;
-
 	add_decl(enumeration);
 }
 
@@ -210,9 +205,8 @@ std::vector<clang::TagDecl const*> DeclFinder::get_sorted_decls() {
 	sortedDecls.reserve(decls.size());
 	tmpDecls.reserve(decls.size());
 
-	for (auto decl : decls) {
+	for (auto decl : decls)
 		sortedDecls.push_back(decl);
-	}
 
 	bool sort = true;
 	while (sort) {
