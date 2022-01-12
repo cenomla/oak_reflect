@@ -7,6 +7,8 @@
 
 #undef VOID
 
+#ifdef OAK_REFLECT_DYNAMIC_LIB
+
 #ifdef _MSC_VER
 #ifdef OAK_REFLECT_EXPORT_SYMBOLS
 #define OAK_REFLECT_API __declspec(dllexport)
@@ -16,6 +18,12 @@
 #else
 #define OAK_REFLECT_API
 #endif // _MSC_VER
+
+#else
+
+#define OAK_REFLECT_API 
+
+#endif // OAK_REFLECT_DYNAMIC_LIB
 
 namespace oak {
 

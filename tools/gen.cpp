@@ -55,7 +55,13 @@ std::string get_annotation_string(clang::Decl const *decl) {
 			clang::LangOptions langOpts;
 			clang::PrintingPolicy policy{ langOpts };
 			attr->printPretty(os, policy);
-			result = str.slice(26, str.size() - 6).str();
+			// TODO: Calculate the eoaOffset from the string instead of using hardcoded values
+#ifdef _WIN32
+			int eoaOffset = 4;
+#else
+			int eoaOffset = 6;
+#endif
+			result = str.slice(26, str.size() - eoaOffset).str();
 			break;
 		}
 	}
