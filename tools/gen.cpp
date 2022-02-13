@@ -17,6 +17,7 @@
 #include <clang/Frontend/ASTConsumers.h>
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/LogDiagnosticPrinter.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
 #include <clang/Rewrite/Core/Rewriter.h>
@@ -46,11 +47,10 @@ namespace {
 
 }
 
-std::string get_annotation_string(clang::Decl const *decl) {
-	std::string result;
+void get_annotation_string(llvm::SmallVectorImpl<char>& out, clang::Decl const *decl) {
 	for (auto const& attr : decl->attrs()) {
 		if (attr->getKind() == clang::attr::Annotate) {
-			llvm::SmallString<32> str;
+			llvm::SmallString<64> str;
 			llvm::raw_svector_ostream os{ str };
 			clang::LangOptions langOpts;
 			clang::PrintingPolicy policy{ langOpts };
@@ -61,15 +61,17 @@ std::string get_annotation_string(clang::Decl const *decl) {
 #else
 			int eoaOffset = 6;
 #endif
-			result = str.slice(26, str.size() - eoaOffset).str();
+			auto slice = str.slice(26, str.size() - eoaOffset);
+			out.append(slice.begin(), slice.end());
 			break;
 		}
 	}
-	return result;
 }
 
 bool should_reflect_decl(clang::Decl const *decl) {
-	return get_annotation_string(decl).find("reflect") == 0;
+	llvm::SmallString<64> annotationString;
+	get_annotation_string(annotationString, decl);
+	return annotationString.find("reflect") == 0;
 }
 
 bool decl_always_comes_before(clang::TagDecl const *lhs, clang::TagDecl const *rhs) {
@@ -141,7 +143,7 @@ struct DeclFinder : public clang::ast_matchers::MatchFinder::MatchCallback {
 	clang::SourceManager *sourceManager = nullptr;
 
 	DeclSerializer *serializer = nullptr;
-	llvm::DenseSet<clang::TagDecl const*> decls;
+	llvm::SmallVector<clang::TagDecl const*, 4> decls;
 
 	DeclFinder(DeclSerializer *serializer_)
 		: serializer{ serializer_ } {}
@@ -152,7 +154,7 @@ struct DeclFinder : public clang::ast_matchers::MatchFinder::MatchCallback {
 
 	void add_decl(clang::TagDecl const *declToAdd);
 
-	std::vector<clang::TagDecl const*> get_sorted_decls();
+	void get_sorted_decls(llvm::SmallVectorImpl<clang::TagDecl const*> &sortedDecls);
 
 	void run(clang::ast_matchers::MatchFinder::MatchResult const& result) override;
 
@@ -163,7 +165,9 @@ struct DeclFinder : public clang::ast_matchers::MatchFinder::MatchCallback {
 };
 
 void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
-	if (record->isDependentType())
+	if (record->isDependentType()
+			|| !record->isThisDeclarationADefinition()
+			|| !record->isCompleteDefinition())
 		return;
 	if (clang::isTemplateInstantiation(record->getTemplateSpecializationKind())) {
 		// Only reflect template type whose template type parameters are also being reflected
@@ -202,17 +206,15 @@ void DeclFinder::parse_enum(clang::EnumDecl const *enumeration) {
 }
 
 void DeclFinder::add_decl(clang::TagDecl const *declToAdd) {
-	decls.insert(declToAdd);
+	//decls.insert(declToAdd);
+	decls.push_back(declToAdd);
 }
 
-std::vector<clang::TagDecl const*> DeclFinder::get_sorted_decls() {
-	std::vector<clang::TagDecl const*> sortedDecls;
-	std::vector<clang::TagDecl const*> tmpDecls;
-	sortedDecls.reserve(decls.size());
-	tmpDecls.reserve(decls.size());
+void DeclFinder::get_sorted_decls(llvm::SmallVectorImpl<clang::TagDecl const*> &sortedDecls) {
+	sortedDecls.append(decls.begin(), decls.end());
 
-	for (auto decl : decls)
-		sortedDecls.push_back(decl);
+	llvm::SmallVector<clang::TagDecl const*, 4> tmpDecls;
+	tmpDecls.reserve(decls.size());
 
 	bool sort = true;
 	while (sort) {
@@ -230,8 +232,6 @@ std::vector<clang::TagDecl const*> DeclFinder::get_sorted_decls() {
 		std::swap(sortedDecls, tmpDecls);
 		tmpDecls.clear();
 	}
-
-	return sortedDecls;
 }
 
 void DeclFinder::run(clang::ast_matchers::MatchFinder::MatchResult const& result) {
@@ -257,27 +257,20 @@ void DeclFinder::onEndOfTranslationUnit() {
 	decls.clear();
 }
 
-struct DeclConstexprSerializerCreateInfo {
-	std::string outputPath;
-	std::string includePrefix;
-	std::vector<std::string> sourcePaths;
-};
-
 struct DeclConstexprSerializer : DeclSerializer {
 
 	std::string outputPath;
 	llvm::raw_fd_ostream fs;
 
-	llvm::SmallString<64> typeListString;
-	llvm::StringSet<> writtenDeclNames;
+	std::string typeListString;
 
 	std::error_code ec;
 
-	DeclConstexprSerializer(std::string const& outputPath, std::string const& includePrefix, std::vector<std::string> const& sourcePaths);
+	DeclConstexprSerializer(
+			std::string_view outputPath,
+			std::string_view includePrefix,
+			std::vector<std::string> const& sourcePaths);
 	~DeclConstexprSerializer();
-
-	void init(DeclConstexprSerializerCreateInfo const& createInfo);
-	void destroy();
 
 	std::string get_mangled_name(clang::Decl const *decl);
 
@@ -297,7 +290,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 
 	void write_type_list();
 
-	void write_header(std::string const& includePrefix, std::vector<std::string> const& filenames);
+	void write_header(std::string_view includePrefix, std::vector<std::string> const& filenames);
 
 	void write_footer();
 
@@ -308,8 +301,11 @@ struct DeclConstexprSerializer : DeclSerializer {
 	void serialize(DeclFinder *finder) override;
 };
 
-DeclConstexprSerializer::DeclConstexprSerializer(std::string const& outputPath_, std::string const& includePrefix_, std::vector<std::string> const& sourcePaths_)
-		: outputPath{ outputPath_ }, fs{ outputPath_, ec } {
+DeclConstexprSerializer::DeclConstexprSerializer(
+		std::string_view outputPath_,
+		std::string_view includePrefix_,
+		std::vector<std::string> const& sourcePaths_)
+			: outputPath{ outputPath_ }, fs{ outputPath_, ec } {
 
 	write_header(includePrefix_, sourcePaths_);
 
@@ -413,22 +409,22 @@ void DeclConstexprSerializer::write_start_type_list() {
 	auto end = outputPath.find_first_of(".", start);
 	auto listName = outputPath.substr(start, end - start);
 
-	llvm::raw_svector_ostream ss{ typeListString };
+	llvm::raw_string_ostream ss{ typeListString };
 	ss << "constexpr TypeInfo const* typeList_" << listName << "[] = {\n";
 }
 
 void DeclConstexprSerializer::write_end_type_list() {
-	llvm::raw_svector_ostream ss{ typeListString };
+	llvm::raw_string_ostream ss{ typeListString };
 	ss << "};\n";
 }
 
 void DeclConstexprSerializer::write_record_type_list_item(clang::CXXRecordDecl const* decl) {
-	llvm::raw_svector_ostream ss{ typeListString };
+	llvm::raw_string_ostream ss{ typeListString };
 	ss << "&Reflect<" << get_namespace_name(decl) << get_specialization_name(decl) << ">::typeInfo,\n";
 }
 
 void DeclConstexprSerializer::write_enum_type_list_item(clang::EnumDecl const* decl) {
-	llvm::raw_svector_ostream ss{ typeListString };
+	llvm::raw_string_ostream ss{ typeListString };
 	ss << "&Reflect<" << get_namespace_name(decl) << get_enum_name(decl) << ">::typeInfo,\n";
 }
 
@@ -436,7 +432,8 @@ void DeclConstexprSerializer::write_type_list() {
 	fs << typeListString;
 }
 
-void DeclConstexprSerializer::write_header(std::string const& includePrefix, std::vector<std::string> const& filenames) {
+void DeclConstexprSerializer::write_header(
+		std::string_view includePrefix, std::vector<std::string> const& filenames) {
 	fs << "#pragma once\n\n";
 
 	fs << "#include <oak_reflect/type_info.h>\n";
@@ -453,7 +450,8 @@ void DeclConstexprSerializer::write_footer() {
 }
 
 void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *decl) {
-	auto annotation = get_annotation_string(decl);
+	llvm::SmallString<64> annotation;
+	get_annotation_string(annotation, decl);
 
 	auto namespaceName = get_namespace_name(decl);
 	auto specializationName = get_specialization_name(decl);
@@ -498,7 +496,8 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				if (!should_reflect_decl(field))
 					continue;
 				auto const& fname = field->getDeclName().getAsString();
-				auto fanno = get_annotation_string(field);
+				llvm::SmallString<64> fanno;
+				get_annotation_string(fanno, field);
 				fs << "\t\t{ \"" << fname
 					<< "\", \"" << fanno
 					<< "\", &Reflect<decltype(T::" << fname
@@ -509,7 +508,8 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 			if (!should_reflect_decl(field))
 				continue;
 			auto const& fname = field->getDeclName().getAsString();
-			auto fanno = get_annotation_string(field);
+			llvm::SmallString<64> fanno;
+			get_annotation_string(fanno, field);
 			fs << "\t\t{ \"" << fname
 				<< "\", \"" << fanno
 				<< "\", &Reflect<decltype(T::" << fname
@@ -526,7 +526,8 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 					continue;
 				auto fname = func->getNameInfo().getAsString();
 				auto fmangledName = get_mangled_name(func);
-				auto fanno = get_annotation_string(func);
+				llvm::SmallString<64> fanno;
+				get_annotation_string(fanno, func);
 				fs << "\t\t{ \"" << fname
 					<< "\", \"" << fmangledName
 					<< "\", \"" << fanno
@@ -538,7 +539,8 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				continue;
 			auto fname = func->getNameInfo().getAsString();
 			auto fmangledName = get_mangled_name(func);
-			auto fanno = get_annotation_string(func);
+			llvm::SmallString<64> fanno;
+			get_annotation_string(fanno, func);
 			fs << "\t\t{ \"" << fname
 				<< "\", \"" << fmangledName
 				<< "\", \"" << fanno
@@ -583,7 +585,8 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 }
 
 void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
-	auto annotation = get_annotation_string(decl);
+	llvm::SmallString<64> annotation;
+	get_annotation_string(annotation, decl);
 
 	auto namespaceName = get_namespace_name(decl);
 	auto enumName = get_enum_name(decl);
@@ -617,24 +620,17 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 }
 
 void DeclConstexprSerializer::serialize(DeclFinder *finder) {
-	auto sortedDecls = finder->get_sorted_decls();
+	llvm::SmallVector<clang::TagDecl const*, 4> sortedDecls;
+	finder->get_sorted_decls(sortedDecls);
 	for (auto decl : sortedDecls) {
 		if (decl->isEnum()) {
 			auto enumDecl = static_cast<clang::EnumDecl const*>(decl);
-			auto declName = get_namespace_name(enumDecl) + get_enum_name(enumDecl);
-			if (writtenDeclNames.find(declName) != std::end(writtenDeclNames))
-				continue;
 			write_parsed_enum(enumDecl);
 			write_enum_type_list_item(enumDecl);
-			writtenDeclNames.insert(declName);
 		} else {
 			auto recordDecl = static_cast<clang::CXXRecordDecl const*>(decl);
-			auto declName = get_namespace_name(recordDecl) + get_specialization_name(recordDecl);
-			if (writtenDeclNames.find(declName) != std::end(writtenDeclNames))
-				continue;
 			write_parsed_record(recordDecl);
 			write_record_type_list_item(recordDecl);
-			writtenDeclNames.insert(declName);
 		}
 	}
 }
