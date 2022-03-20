@@ -1,10 +1,15 @@
 #include <oak_reflect/type_info.h>
 
+#include <oak_util/algorithm.h>
+
 namespace oak {
+
+namespace {
+	constexpr String reflectAttribute = "reflect;";
+}
 
 	bool attribute_value_in_annotation(String annotation, String attribute, String *value) {
 		// TODO: Make this function consteval in c++20 or maybe just optimize it using SIMD
-		constexpr String reflectAttribute = "reflect;";
 
 		// States:
 		// 0 = look for attribute
@@ -82,6 +87,30 @@ namespace oak {
 		}
 
 		return false;
+	}
+
+	Slice<String> attributes_in_annotation(String annotation) {
+		Slice<String> result;
+		auto attributeCount = slice_count<char const>(annotation, ',', reflectAttribute.count) + 1;
+		result.data = allocate<String>(temporaryAllocator, attributeCount);
+
+		i64 end = annotation.count;
+		for (i64 i = reflectAttribute.count - 1; i < end; ++i) {
+			if (annotation[i] == ';' || annotation[i] == ',') {
+				i64 j = i + 1;
+				for (; j <= end; ++j) {
+					if (j == end || annotation[j] == ',') {
+						auto str = String{ annotation.data + i + 1, j - i - 1 };
+						if (str.count)
+							result[result.count++] = str;
+						break;
+					}
+				}
+				i = j - 1;
+			}
+		}
+
+		return result;
 	}
 
 }

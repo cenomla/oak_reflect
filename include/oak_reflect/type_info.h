@@ -21,7 +21,7 @@
 
 #else
 
-#define OAK_REFLECT_API 
+#define OAK_REFLECT_API
 
 #endif // OAK_REFLECT_DYNAMIC_LIB
 
@@ -313,6 +313,7 @@ namespace oak {
 	}
 
 	OAK_REFLECT_API bool attribute_value_in_annotation(String annotation, String attribute, String *value = nullptr);
+	OAK_REFLECT_API Slice<String> attributes_in_annotation(String annotation);
 
 	constexpr bool attribute_in_annotation(String annotation, String attribute) {
 		if (annotation.count <= attribute.count)
