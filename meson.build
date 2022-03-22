@@ -17,9 +17,9 @@ if host_machine.system() == 'windows'
   ]
 else
   sys_deps = [
-	cxx.find_library('pthread'),
-	cxx.find_library('z'),
-	cxx.find_library('ncurses'),
+    dependency('threads'),
+    cxx.find_library('z', required: false),
+    cxx.find_library('ncurses', required: false),
   ]
 endif
 
