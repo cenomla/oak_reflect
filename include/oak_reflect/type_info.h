@@ -1,5 +1,6 @@
 #pragma once
 
+#include <new>
 #include <type_traits>
 
 #include <oak_util/types.h>
@@ -87,6 +88,13 @@ namespace oak {
 		i64 virtualOffset;
 	};
 
+	struct PropertyInfo {
+		String name;
+		String annotation;
+		TypeInfo const *typeInfo;
+		void const* data;
+	};
+
 	struct StructTypeInfo : TypeInfo {
 		String name;
 		String annotation;
@@ -95,6 +103,7 @@ namespace oak {
 		TypeInfo const *base;
 		Slice<FieldInfo const> fields;
 		Slice<MethodInfo const> methods;
+		Slice<PropertyInfo const> properties;
 		void (*defaultConstructFn)(void*);
 	};
 
@@ -313,7 +322,7 @@ namespace oak {
 	}
 
 	OAK_REFLECT_API bool attribute_value_in_annotation(String annotation, String attribute, String *value = nullptr);
-	OAK_REFLECT_API Slice<String> attributes_in_annotation(String annotation);
+	OAK_REFLECT_API Vector<String> attributes_in_annotation(String annotation);
 
 	constexpr bool attribute_in_annotation(String annotation, String attribute) {
 		if (annotation.count <= attribute.count)

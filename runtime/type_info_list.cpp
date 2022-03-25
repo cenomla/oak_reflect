@@ -4,19 +4,6 @@
 
 namespace oak {
 
-	void TypeCategory::init(TypeCategoryCreateInfo const& createInfo) {
-		capacity = createInfo.typeCapacity;
-		types.data = allocate<TypeInfo const*>(createInfo.allocator, capacity);
-	}
-
-	void TypeCategory::destroy(Allocator *allocator) {
-		deallocate(allocator, types.data, capacity);
-	}
-
-	void TypeCategory::clear() {
-		types.count = 0;
-	}
-
 	void TypeCategory::add_type(TypeInfo const* typeInfo) {
 		// Don't add duplicates
 		for (auto type : types) {
@@ -24,8 +11,7 @@ namespace oak {
 				return;
 			}
 		}
-		assert(types.count < capacity);
-		types[types.count++] = typeInfo;
+		push(&types, typeInfo);
 	}
 
 	i64 TypeCategory::type_index(TypeInfo const* typeInfo) const {

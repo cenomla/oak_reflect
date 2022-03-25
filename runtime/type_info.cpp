@@ -89,10 +89,10 @@ namespace {
 		return false;
 	}
 
-	Slice<String> attributes_in_annotation(String annotation) {
-		Slice<String> result;
+	Vector<String> attributes_in_annotation(String annotation) {
+		Vector<String> result;
 		auto attributeCount = slice_count<char const>(annotation, ',', reflectAttribute.count) + 1;
-		result.data = allocate<String>(temporaryAllocator, attributeCount);
+		result.reserve(temporaryAllocator, attributeCount);
 
 		i64 end = annotation.count;
 		for (i64 i = reflectAttribute.count - 1; i < end; ++i) {
@@ -102,7 +102,7 @@ namespace {
 					if (j == end || annotation[j] == ',') {
 						auto str = String{ annotation.data + i + 1, j - i - 1 };
 						if (str.count)
-							result[result.count++] = str;
+							push(&result, str);
 						break;
 					}
 				}

@@ -7,19 +7,8 @@
 
 namespace oak {
 
-	struct TypeCategoryCreateInfo {
-		Allocator *allocator = nullptr;
-		i64 typeCapacity = 0;
-	};
-
 	struct OAK_REFLECT_API TypeCategory {
-		Slice<TypeInfo const*> types;
-		i64 capacity = 0;
-
-		void init(TypeCategoryCreateInfo const& createInfo);
-		void destroy(Allocator *allocator);
-
-		void clear();
+		Vector<TypeInfo const*> types;
 
 		void add_type(TypeInfo const *typeInfo);
 		i64 type_index(TypeInfo const *typeInfo) const;

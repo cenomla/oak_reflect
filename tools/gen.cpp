@@ -74,6 +74,11 @@ bool should_reflect_decl(clang::Decl const *decl) {
 	return annotationString.find("reflect") == 0;
 }
 
+bool is_property(clang::Decl const *decl) {
+	return decl->getKind() == clang::Decl::Kind::Var
+			&& static_cast<clang::VarDecl const*>(decl)->isStaticDataMember();
+}
+
 bool decl_always_comes_before(clang::TagDecl const *lhs, clang::TagDecl const *rhs) {
 	// TODO: Needs to take arrays into consideration (ie. Vec2 points[2])
 	if (rhs->isRecord()) {
@@ -461,29 +466,44 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 
 	bool hasFields = false;
 	bool hasMethods = false;
-	for (auto const& field : decl->fields()) {
+	bool hasProperties = false;
+	for (auto field : decl->fields()) {
 		if (should_reflect_decl(field)) {
 			hasFields = true;
 			break;
 		}
 	}
-	for (auto const& func : decl->methods()) {
+	for (auto func : decl->methods()) {
 		if (should_reflect_decl(func)) {
 			hasMethods = true;
 			break;
 		}
 	}
+
+	for (auto prop : decl->decls()) {
+		if (is_property(prop) && should_reflect_decl(prop)) {
+			hasProperties = true;
+			break;
+		}
+	}
+
 	for (auto const& base : decl->bases()) {
 		auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
-		for (auto const& field : bDecl->fields()) {
+		for (auto field : bDecl->fields()) {
 			if (should_reflect_decl(field)) {
 				hasFields = true;
 				break;
 			}
 		}
-		for (auto const& func : bDecl->methods()) {
+		for (auto func : bDecl->methods()) {
 			if (should_reflect_decl(func)) {
 				hasMethods = true;
+				break;
+			}
+		}
+		for (auto prop : decl->decls()) {
+			if (is_property(prop) && should_reflect_decl(prop)) {
+				hasProperties = true;
 				break;
 			}
 		}
@@ -548,6 +568,35 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 		}
 		fs << "\t};\n";
 	}
+	if (hasProperties) {
+		fs << "\tstatic constexpr PropertyInfo properties[] = {\n";
+		for (auto const& base : decl->bases()) {
+			auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
+			for (auto prop : bDecl->decls()) {
+				if (!is_property(prop) || !should_reflect_decl(prop))
+					continue;
+				auto const& fname = static_cast<clang::VarDecl*>(prop)->getDeclName().getAsString();
+				llvm::SmallString<64> fanno;
+				get_annotation_string(fanno, prop);
+				fs << "\t\t{ \"" << fname
+					<< "\", \"" << fanno
+					<< "\", &Reflect<std::remove_cv_t<decltype(T::" << fname
+					<< ")>>::typeInfo, &T::" << fname << "},\n";
+			}
+		}
+		for (auto prop : decl->decls()) {
+			if (!is_property(prop) || !should_reflect_decl(prop))
+				continue;
+			auto const& fname = static_cast<clang::VarDecl*>(prop)->getDeclName().getAsString();
+			llvm::SmallString<64> fanno;
+			get_annotation_string(fanno, prop);
+			fs << "\t\t{ \"" << fname
+				<< "\", \"" << fanno
+				<< "\", &Reflect<std::remove_cv_t<decltype(T::" << fname
+				<< ")>>::typeInfo, &T::" << fname << "},\n";
+		}
+		fs << "\t};\n";
+	}
 
 	auto typeId = hash_combine(
 			std::hash<std::string>{}(namespaceName),
@@ -571,6 +620,7 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				<< "\", sizeof(T), alignof(T), &Reflect<" << baseNamespaceName << baseName
 				<< ">::typeInfo, " << (hasFields ? "fields" : "{}")
 				<< ", " << (hasMethods ? "methods" : "{}")
+				<< ", " << (hasProperties ? "properties" : "{}")
 				<< ", &detail::generic_construct<T> };\n";
 		} else {
 			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { " << typeId
@@ -578,6 +628,7 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				<< "\", \"" << annotation
 				<< "\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, " << (hasFields ? "fields" : "{}")
 				<< ", " << (hasMethods ? "methods" : "{}")
+				<< ", " << (hasProperties ? "properties" : "{}")
 				<< ", &detail::generic_construct<T> };\n";
 		}
 	}

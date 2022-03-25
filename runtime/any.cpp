@@ -28,6 +28,42 @@ namespace oak {
 		return { add_ptr(ptr, field->offset), field->typeInfo };
 	}
 
+	CAny Any::get_property(String name, PropertyInfo const ** info) const noexcept {
+		if (type->kind == TypeInfoKind::STRUCT) {
+			auto si = static_cast<StructTypeInfo const*>(type);
+			for (auto& prop : si->properties) {
+				if (prop.name == name) {
+					if (info) {
+						*info = &prop;
+					}
+					return { prop.data, prop.typeInfo };
+				}
+			}
+		}
+		return { nullptr, &Reflect<NoType>::typeInfo };
+	}
+
+	CAny Any::get_property(PropertyInfo const *info) const noexcept {
+		return { info->data, info->typeInfo };
+	}
+
+	CAny Any::get_member_or_property(String name) const noexcept {
+		if (type->kind == TypeInfoKind::STRUCT) {
+			auto si = static_cast<StructTypeInfo const*>(type);
+			for (auto& prop : si->properties) {
+				if (prop.name == name) {
+					return { prop.data, prop.typeInfo };
+				}
+			}
+			for (auto& field : si->fields) {
+				if (field.name == name) {
+					return { add_ptr(ptr, field.offset), field.typeInfo };
+				}
+			}
+		}
+		return { nullptr, &Reflect<NoType>::typeInfo };
+	}
+
 	Any Any::get_element(i64 index) const noexcept {
 		if (type->kind == TypeInfoKind::ARRAY) {
 			auto ai = static_cast<ArrayTypeInfo const*>(type);
@@ -36,7 +72,7 @@ namespace oak {
 			}
 		} else if (has_attribute(type, "array")) {
 			auto data = get_member("data");
-			auto count = get_member("count");
+			auto capacity = get_member_or_property("capacity");
 
 			void *ptr;
 			TypeInfo const *elemType;
@@ -46,14 +82,14 @@ namespace oak {
 					elemType = static_cast<ArrayTypeInfo const*>(data.type)->of;
 					break;
 				case TypeInfoKind::POINTER:
-					ptr = data.to_value<void*>();
+					ptr = data.ptr_value();
 					elemType = static_cast<PointerTypeInfo const*>(data.type)->to;
 					break;
 				default:
 					assert(false && "Invalid element type");
 			}
 
-			if (index < count.to_value<i64>()) {
+			if (index < capacity.to_value<i64>()) {
 				return { add_ptr(ptr, index * type_size(elemType)), elemType };
 			} else {
 				return { nullptr, elemType };
@@ -84,14 +120,14 @@ namespace oak {
 		assert(type->kind == TypeInfoKind::ENUM);
 		auto ei = static_cast<EnumTypeInfo const*>(type);
 		switch (ei->underlyingType->uid) {
-			case Reflect<i8>::typeInfo.uid: to_value<i8>() = static_cast<i8>(ev); break;
-			case Reflect<i16>::typeInfo.uid: to_value<i16>() = static_cast<i16>(ev); break;
-			case Reflect<i32>::typeInfo.uid: to_value<i32>() = static_cast<i32>(ev); break;
-			case Reflect<i64>::typeInfo.uid: to_value<i64>() = static_cast<i64>(ev); break;
-			case Reflect<u8>::typeInfo.uid: to_value<u8>() = static_cast<u8>(ev); break;
-			case Reflect<u16>::typeInfo.uid: to_value<u16>() = static_cast<u16>(ev); break;
-			case Reflect<u32>::typeInfo.uid: to_value<u32>() = static_cast<u32>(ev); break;
-			case Reflect<u64>::typeInfo.uid: to_value<u64>() = static_cast<u64>(ev); break;
+			case Reflect<i8>::typeInfo.uid: *static_cast<i8*>(ptr) = static_cast<i8>(ev); break;
+			case Reflect<i16>::typeInfo.uid: *static_cast<i16*>(ptr) = static_cast<i16>(ev); break;
+			case Reflect<i32>::typeInfo.uid: *static_cast<i32*>(ptr) = static_cast<i32>(ev); break;
+			case Reflect<i64>::typeInfo.uid: *static_cast<i64*>(ptr) = static_cast<i64>(ev); break;
+			case Reflect<u8>::typeInfo.uid: *static_cast<u8*>(ptr) = static_cast<u8>(ev); break;
+			case Reflect<u16>::typeInfo.uid: *static_cast<u16*>(ptr) = static_cast<u16>(ev); break;
+			case Reflect<u32>::typeInfo.uid: *static_cast<u32*>(ptr) = static_cast<u32>(ev); break;
+			case Reflect<u64>::typeInfo.uid: *static_cast<u64*>(ptr) = static_cast<u64>(ev); break;
 			default: break;
 		}
 	}
@@ -101,14 +137,14 @@ namespace oak {
 		auto ei = static_cast<EnumTypeInfo const*>(type);
 		u64 ev = 0;
 		switch (ei->underlyingType->uid) {
-			case Reflect<i8>::typeInfo.uid: ev = static_cast<u64>(to_value<i8>()); break;
-			case Reflect<i16>::typeInfo.uid: ev = static_cast<u64>(to_value<i16>()); break;
-			case Reflect<i32>::typeInfo.uid: ev = static_cast<u64>(to_value<i32>()); break;
-			case Reflect<i64>::typeInfo.uid: ev = static_cast<u64>(to_value<i64>()); break;
-			case Reflect<u8>::typeInfo.uid: ev = to_value<u8>(); break;
-			case Reflect<u16>::typeInfo.uid: ev = to_value<u16>(); break;
-			case Reflect<u32>::typeInfo.uid: ev = to_value<u32>(); break;
-			case Reflect<u64>::typeInfo.uid: ev = to_value<u64>(); break;
+			case Reflect<i8>::typeInfo.uid: ev = static_cast<u64>(*static_cast<i8*>(ptr)); break;
+			case Reflect<i16>::typeInfo.uid: ev = static_cast<u64>(*static_cast<i16*>(ptr)); break;
+			case Reflect<i32>::typeInfo.uid: ev = static_cast<u64>(*static_cast<i32*>(ptr)); break;
+			case Reflect<i64>::typeInfo.uid: ev = static_cast<u64>(*static_cast<i64*>(ptr)); break;
+			case Reflect<u8>::typeInfo.uid: ev = *static_cast<u8*>(ptr); break;
+			case Reflect<u16>::typeInfo.uid: ev = *static_cast<u16*>(ptr); break;
+			case Reflect<u32>::typeInfo.uid: ev = *static_cast<u32*>(ptr); break;
+			case Reflect<u64>::typeInfo.uid: ev = *static_cast<u64*>(ptr); break;
 			default: break;
 		}
 		return ev;
@@ -166,7 +202,7 @@ namespace oak {
 					default: return false;
 				}
 			};
-			case TypeInfoKind::POINTER: return lhs.to_value<void*>() == rhs.to_value<void*>();
+			case TypeInfoKind::POINTER: return lhs.ptr_value() == rhs.ptr_value();
 			case TypeInfoKind::ARRAY:
 			{
 				bool ret = true;
@@ -186,19 +222,34 @@ namespace oak {
 					auto size = type_size(lhs.type);
 					return size == 0 || std::memcmp(lhs.ptr, rhs.ptr, size) == 0;
 				} else if (has_attribute(lhs.type, "array")) {
-					auto lhsCount = lhs.get_member("count").to_value<i64>();
-					auto rhsCount = rhs.get_member("count").to_value<i64>();
-					if (lhsCount != rhsCount)
-						return false;
+					if (auto lhsCount = lhs.get_member("count"); lhsCount.type->kind != TypeInfoKind::NONE) {
+						auto rhsCount = rhs.get_member("count");
+						if (lhsCount.to_value<i64>() != rhsCount.to_value<i64>())
+							return false;
 
-					bool ret = true;
-					for (i32 i = 0; i < lhsCount; ++i) {
-						if (lhs.get_element(i) != rhs.get_element(i)) {
-							ret = false;
-							break;
+						bool ret = true;
+						for (i32 i = 0; i < lhsCount.to_value<i64>(); ++i) {
+							if (lhs.get_element(i) != rhs.get_element(i)) {
+								ret = false;
+								break;
+							}
 						}
+						return ret;
+					} else {
+						auto lhsCapacity = lhs.get_member_or_property("capacity");
+						auto rhsCapacity = rhs.get_member_or_property("capacity");
+						if (lhsCapacity.to_value<i64>() != rhsCapacity.to_value<i64>())
+							return false;
+
+						bool ret = true;
+						for (i32 i = 0; i < lhsCapacity.to_value<i64>(); ++i) {
+							if (lhs.get_element(i) != rhs.get_element(i)) {
+								ret = false;
+								break;
+							}
+						}
+						return ret;
 					}
-					return ret;
 				} else {
 					bool ret = true;
 					auto si = static_cast<StructTypeInfo const*>(lhs.type);
@@ -265,7 +316,7 @@ namespace oak {
 				if (count.to_value<i64>()) {
 					dst.get_member("count").to_value<i64>() = count.to_value<i64>();
 					auto elem0 = src.get_element(0);
-					dst.get_member("data").to_value<void*>() = allocator->allocate(
+					dst.get_member("data").ptr_value() = allocator->allocate(
 							type_size(elem0.type) * count.to_value<i64>(), type_align(elem0.type));
 					for (i64 i = 0; i < count.to_value<i64>(); ++i) {
 						copy_deep(dst.get_element(i), src.get_element(i), allocator);
