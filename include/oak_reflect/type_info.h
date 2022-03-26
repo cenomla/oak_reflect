@@ -1,6 +1,5 @@
 #pragma once
 
-#include <new>
 #include <type_traits>
 
 #include <oak_util/types.h>
