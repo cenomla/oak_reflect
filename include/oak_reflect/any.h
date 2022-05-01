@@ -20,6 +20,11 @@ namespace oak {
 		void *ptr = nullptr;
 		TypeInfo const *type = nullptr;
 
+		template<typename T>
+		static constexpr Any from_value(T *value) {
+			return { value, &Reflect<T>::typeInfo };
+		}
+
 		Any get_member(String name, FieldInfo const ** info = nullptr) const noexcept;
 		Any get_member(FieldInfo const *info) const noexcept;
 		CAny get_property(String name, PropertyInfo const ** info = nullptr) const noexcept;
