@@ -24,6 +24,8 @@ namespace oak {
 	}
 
 	TypeInfo const* TypeCategory::find_type_with_name(String name, i64 *index) const {
+		if (index)
+			*index = -1;
 		for (i64 i = 0; i < types.count; ++i) {
 			auto type = types[i];
 			if (type_name(type) == name) {
@@ -36,6 +38,8 @@ namespace oak {
 	}
 
 	TypeInfo const* TypeCategory::find_type_with_uid(u64 uid, i64 *index) const {
+		if (index)
+			*index = -1;
 		for (i64 i = 0; i < types.count; ++i) {
 			auto type = types[i];
 			if (type->uid == uid) {
