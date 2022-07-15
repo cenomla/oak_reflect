@@ -160,16 +160,6 @@ namespace oak {
 		return result;
 	}
 
-	Any Any::deep_copy(Allocator *allocator) const {
-		Any result;
-		result.type = type;
-		result.ptr = allocator->allocate(type_size(type), type_align(type));
-
-		copy_deep(result, *this, allocator);
-
-		return result;
-	}
-
 	bool operator==(Any lhs, Any rhs) noexcept {
 		if (lhs.type != rhs.type)
 			return false;
@@ -217,10 +207,8 @@ namespace oak {
 			}
 			case TypeInfoKind::STRUCT:
 			{
-				if (has_attribute(lhs.type, "primitive")) {
-					// Treat as a primitive type
-					auto size = type_size(lhs.type);
-					return size == 0 || std::memcmp(lhs.ptr, rhs.ptr, size) == 0;
+				if (lhs.type->uid == Reflect<String>::typeInfo.uid) {
+					return lhs.to_value<String>() == rhs.to_value<String>();
 				} else if (has_attribute(lhs.type, "array")) {
 					if (auto lhsCount = lhs.get_member("count"); lhsCount.type->kind != TypeInfoKind::NONE) {
 						auto rhsCount = rhs.get_member("count");
@@ -307,10 +295,11 @@ namespace oak {
 		}
 	}
 
+	/*
 	void copy_deep(Any dst, Any src, Allocator *allocator) {
 		assert(dst.type && src.type);
 
-		if (dst.type->kind == TypeInfoKind::STRUCT && !has_attribute(dst.type, "primitive")) {
+		if (dst.type->kind == TypeInfoKind::STRUCT) {
 			if (has_attribute(dst.type, "array")) {
 				auto count = src.get_member("count");
 				if (count.to_value<i64>()) {
@@ -332,5 +321,6 @@ namespace oak {
 			std::memcpy(dst.ptr, src.ptr, type_size(dst.type));
 		}
 	}
+	*/
 
 }

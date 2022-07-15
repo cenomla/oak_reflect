@@ -55,7 +55,6 @@ namespace oak {
 		u64 get_enum_value() const noexcept;
 
 		Any shallow_copy(Allocator *allocator) const;
-		Any deep_copy(Allocator *allocator) const;
 	};
 
 	OAK_REFLECT_API bool operator==(Any lhs, Any rhs) noexcept;
