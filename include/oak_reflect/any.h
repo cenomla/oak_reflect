@@ -30,6 +30,8 @@ namespace oak {
 		CAny get_property(String name, PropertyInfo const ** info = nullptr) const noexcept;
 		CAny get_property(PropertyInfo const *info) const noexcept;
 		CAny get_member_or_property(String name) const noexcept;
+
+		i64 get_array_count() const noexcept;
 		Any get_element(i64 index) const noexcept;
 
 		void construct() noexcept;

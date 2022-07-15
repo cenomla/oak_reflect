@@ -48,7 +48,7 @@ namespace {
 				default:
 					switch (state) {
 						case 0:
-							if (sub_slice(annotation, i, i + attribute.count) == attribute) {
+							if (sub_slice(slc(annotation), i, i + attribute.count) == attribute) {
 								// We potentially found the attribute, skip to it's value
 								state = 1;
 								i += attribute.count;
@@ -114,4 +114,3 @@ namespace {
 	}
 
 }
-

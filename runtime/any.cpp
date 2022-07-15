@@ -9,6 +9,20 @@
 
 namespace oak {
 
+namespace {
+
+	i64 get_any_struct_array_count(Any any) {
+		if (auto count = any.get_member("count"); count.type->kind != TypeInfoKind::NONE)
+			return count.to_value<i64>();
+
+		if (auto capacity = any.get_member_or_property("capacity"); capacity.type->kind != TypeInfoKind::NONE)
+			return capacity.to_value<i64>();
+
+		return 0;
+	}
+
+}
+
 	Any Any::get_member(String name, FieldInfo const ** info) const noexcept {
 		if (type->kind == TypeInfoKind::STRUCT) {
 			auto si = static_cast<StructTypeInfo const*>(type);
@@ -64,6 +78,15 @@ namespace oak {
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
 
+	i64 Any::get_array_count() const noexcept {
+		if (type->kind == TypeInfoKind::ARRAY) {
+			return static_cast<ArrayTypeInfo const*>(type)->count;
+		} else if (type->kind == TypeInfoKind::STRUCT) {
+			return get_any_struct_array_count(*this);
+		}
+		return 0;
+	}
+
 	Any Any::get_element(i64 index) const noexcept {
 		if (type->kind == TypeInfoKind::ARRAY) {
 			auto ai = static_cast<ArrayTypeInfo const*>(type);
@@ -72,7 +95,7 @@ namespace oak {
 			}
 		} else if (has_attribute(type, "array")) {
 			auto data = get_member("data");
-			auto capacity = get_member_or_property("capacity");
+			auto count = get_any_struct_array_count(*this);
 
 			void *ptr;
 			TypeInfo const *elemType;
@@ -89,7 +112,7 @@ namespace oak {
 					assert(false && "Invalid element type");
 			}
 
-			if (index < capacity.to_value<i64>()) {
+			if (index < count) {
 				return { add_ptr(ptr, index * type_size(elemType)), elemType };
 			} else {
 				return { nullptr, elemType };
@@ -177,6 +200,7 @@ namespace oak {
 				switch (lhs.type->uid) {
 #define PRIM_EQUAL_CASE(x) case Reflect<x>::typeInfo.uid:\
 					return lhs.to_value<x>() == rhs.to_value<x>();
+					PRIM_EQUAL_CASE(char)
 					PRIM_EQUAL_CASE(bool)
 					PRIM_EQUAL_CASE(i8)
 					PRIM_EQUAL_CASE(i16)
@@ -207,37 +231,20 @@ namespace oak {
 			}
 			case TypeInfoKind::STRUCT:
 			{
-				if (lhs.type->uid == Reflect<String>::typeInfo.uid) {
-					return lhs.to_value<String>() == rhs.to_value<String>();
-				} else if (has_attribute(lhs.type, "array")) {
-					if (auto lhsCount = lhs.get_member("count"); lhsCount.type->kind != TypeInfoKind::NONE) {
-						auto rhsCount = rhs.get_member("count");
-						if (lhsCount.to_value<i64>() != rhsCount.to_value<i64>())
-							return false;
+				if (has_attribute(lhs.type, "array")) {
+					auto lhsCount = get_any_struct_array_count(lhs);
+					auto rhsCount = get_any_struct_array_count(rhs);
+					if (lhsCount != rhsCount)
+						return false;
 
-						bool ret = true;
-						for (i32 i = 0; i < lhsCount.to_value<i64>(); ++i) {
-							if (lhs.get_element(i) != rhs.get_element(i)) {
-								ret = false;
-								break;
-							}
+					bool ret = true;
+					for (i32 i = 0; i < lhsCount; ++i) {
+						if (lhs.get_element(i) != rhs.get_element(i)) {
+							ret = false;
+							break;
 						}
-						return ret;
-					} else {
-						auto lhsCapacity = lhs.get_member_or_property("capacity");
-						auto rhsCapacity = rhs.get_member_or_property("capacity");
-						if (lhsCapacity.to_value<i64>() != rhsCapacity.to_value<i64>())
-							return false;
-
-						bool ret = true;
-						for (i32 i = 0; i < lhsCapacity.to_value<i64>(); ++i) {
-							if (lhs.get_element(i) != rhs.get_element(i)) {
-								ret = false;
-								break;
-							}
-						}
-						return ret;
 					}
+					return ret;
 				} else {
 					bool ret = true;
 					auto si = static_cast<StructTypeInfo const*>(lhs.type);

@@ -206,7 +206,7 @@ namespace oak {
 
 	template<typename T>
 	struct Reflect<T, std::enable_if_t<std::is_pointer_v<std::remove_cv_t<std::remove_reference_t<T>>>, std::true_type>> {
-		using PointeeType = std::remove_pointer_t<std::remove_cv_t<std::remove_reference_t<T>>>;
+		using PointeeType = std::remove_cv_t<std::remove_pointer_t<std::remove_cv_t<std::remove_reference_t<T>>>>;
 		static constexpr PointerTypeInfo typeInfo{
 			{ Reflect<PointeeType>::typeInfo.uid ^ 0x1234123412341234, TypeInfoKind::POINTER },
 			&Reflect<PointeeType>::typeInfo };
@@ -373,7 +373,7 @@ namespace oak {
 		if (typeInfo->kind == TypeInfoKind::ENUM) {
 			auto ei = static_cast<EnumTypeInfo const*>(typeInfo);
 			for (auto constant : ei->constants) {
-				if (constant.value == static_cast<u64>(enum_int(e))) {
+				if (constant.value == static_cast<u64>(eni(e))) {
 					return constant.name;
 				}
 			}
@@ -382,4 +382,3 @@ namespace oak {
 	}
 
 }
-
