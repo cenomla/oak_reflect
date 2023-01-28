@@ -708,9 +708,9 @@ int main(int argc, char const **argv) {
 	finder.addMatcher(classMatcher, &declFinder);
 	finder.addMatcher(enumMatcher, &declFinder);
 
-	tool.run(clang::tooling::newFrontendActionFactory(&finder).get());
+	auto result = tool.run(clang::tooling::newFrontendActionFactory(&finder).get());
 
-	return 0;
+	return result;
 }
 
 
