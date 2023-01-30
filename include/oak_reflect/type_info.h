@@ -353,6 +353,21 @@ namespace oak {
 		return false;
 	}
 
+	constexpr bool value_attribute_decompose(String attribute, String *name = nullptr, String *value = nullptr) {
+		auto pos = find(slc(attribute), '=');
+
+		if (pos == -1)
+			return false;
+
+		if (name)
+			*name = sub_slice(slc(attribute), 0, pos);
+
+		if (value)
+			*value = sub_slice(slc(attribute), pos + 1);
+
+		return true;
+	}
+
 	constexpr bool has_attribute(TypeInfo const *typeInfo, String attribute) {
 		String annotation;
 		switch (typeInfo->kind) {
