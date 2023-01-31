@@ -22,51 +22,51 @@ namespace {
 
 		for (i = reflectAttribute.count; i < annotation.count;) {
 			switch (annotation[i]) {
-				case ' ':
-					// Skip spaces
-					++i;
-					break;
-				case ',':
-					// If we found the attribute finish parsing otherwise keep looking
-					if (state == 1 || state == 2)
-						goto doneParsing;
-					else
-						state = 0;
-					++i;
-					break;
-				case '=':
-					// If we have found an attribute name then switch to getting the attribute value
-					// If we didn't find anything then skip this section
-					if (state == 1) {
-						state = 2;
-						resultStart = i + 1;
+			case ' ':
+				// Skip spaces
+				++i;
+				break;
+			case ',':
+				// If we found the attribute finish parsing otherwise keep looking
+				if (state == 1 || state == 2)
+					goto doneParsing;
+				else
+					state = 0;
+				++i;
+				break;
+			case '=':
+				// If we have found an attribute name then switch to getting the attribute value
+				// If we didn't find anything then skip this section
+				if (state == 1) {
+					state = 2;
+					resultStart = i + 1;
+				} else {
+					state = 3;
+				}
+				++i;
+				break;
+			default:
+				switch (state) {
+				case 0:
+					if (sub_slice(slc(annotation), i, i + attribute.count) == attribute) {
+						// We potentially found the attribute, skip to it's value
+						state = 1;
+						i += attribute.count;
 					} else {
+						// This attribute doesn't match the one we're looking for, skip it
 						state = 3;
+						++i;
 					}
+					break;
+				case 1:
+					// The potential attribute match turns out to just be a sub string of the attribute we're
+					// looking at, skip this section
+					state = 3;
+				case 2: case 3:
 					++i;
 					break;
-				default:
-					switch (state) {
-						case 0:
-							if (sub_slice(slc(annotation), i, i + attribute.count) == attribute) {
-								// We potentially found the attribute, skip to it's value
-								state = 1;
-								i += attribute.count;
-							} else {
-								// This attribute doesn't match the one we're looking for, skip it
-								state = 3;
-								++i;
-							}
-							break;
-						case 1:
-							// The potential attribute match turns out to just be a sub string of the attribute we're
-							// looking at, skip this section
-							state = 3;
-						case 2: case 3:
-							++i;
-							break;
-					}
-					break;
+				}
+				break;
 			}
 		}
 

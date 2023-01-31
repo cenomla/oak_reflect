@@ -292,36 +292,45 @@ namespace oak {
 
 	constexpr u64 type_size(TypeInfo const *typeInfo) {
 		switch (typeInfo->kind) {
-			case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->size;
-			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->size;
-			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->size;
-			case TypeInfoKind::ENUM: return type_size(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
-			case TypeInfoKind::POINTER: return sizeof(void*);
-			case TypeInfoKind::ARRAY: return type_size(static_cast<ArrayTypeInfo const*>(typeInfo)->of)
-									  * static_cast<ArrayTypeInfo const*>(typeInfo)->count;
-			default: return 0;
+		case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->size;
+		case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->size;
+		case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->size;
+		case TypeInfoKind::ENUM: return type_size(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+		case TypeInfoKind::POINTER: return sizeof(void*);
+		case TypeInfoKind::ARRAY: return type_size(static_cast<ArrayTypeInfo const*>(typeInfo)->of)
+								  * static_cast<ArrayTypeInfo const*>(typeInfo)->count;
+		default: return 0;
 		}
 	}
 
 	constexpr u64 type_align(TypeInfo const *typeInfo) {
 		switch (typeInfo->kind) {
-			case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->align;
-			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->align;
-			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->align;
-			case TypeInfoKind::ENUM: return type_align(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
-			case TypeInfoKind::POINTER: return alignof(void*);
-			case TypeInfoKind::ARRAY: return type_align(static_cast<ArrayTypeInfo const*>(typeInfo)->of);
-			default: return 0;
+		case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->align;
+		case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->align;
+		case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->align;
+		case TypeInfoKind::ENUM: return type_align(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+		case TypeInfoKind::POINTER: return alignof(void*);
+		case TypeInfoKind::ARRAY: return type_align(static_cast<ArrayTypeInfo const*>(typeInfo)->of);
+		default: return 0;
 		}
 	}
 
 	constexpr String type_name(TypeInfo const *typeInfo) {
 		switch (typeInfo->kind) {
-			case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->name;
-			case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->name;
-			case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->name;
-			case TypeInfoKind::ENUM: return type_name(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
-			default: return "";
+		case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->name;
+		case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->name;
+		case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->name;
+		case TypeInfoKind::ENUM: return type_name(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+		default: return "";
+		}
+	}
+
+	constexpr String type_annotation(TypeInfo const *typeInfo) {
+		switch (typeInfo->kind) {
+		case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->annotation;
+		case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->annotation;
+		case TypeInfoKind::ENUM: return static_cast<EnumTypeInfo const*>(typeInfo)->annotation;
+		default: return "";
 		}
 	}
 
@@ -369,15 +378,7 @@ namespace oak {
 	}
 
 	constexpr bool has_attribute(TypeInfo const *typeInfo, String attribute) {
-		String annotation;
-		switch (typeInfo->kind) {
-			case TypeInfoKind::STRUCT: annotation = static_cast<StructTypeInfo const*>(typeInfo)->annotation; break;
-			case TypeInfoKind::UNION: annotation = static_cast<UnionTypeInfo const*>(typeInfo)->annotation; break;
-			case TypeInfoKind::ENUM: annotation = static_cast<EnumTypeInfo const*>(typeInfo)->annotation; break;
-			default: break;
-		}
-
-		return attribute_in_annotation(annotation, attribute);
+		return attribute_in_annotation(type_annotation(typeInfo), attribute);
 	}
 
 	constexpr bool has_attribute(FieldInfo const *fieldInfo, String attribute) {
