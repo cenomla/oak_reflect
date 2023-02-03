@@ -40,6 +40,48 @@ namespace {
 		llvm::cl::value_desc{"reflection include prefix"},
 	};
 
+	inline uint64_t murmur_hash_64a(void const *key, int len, uint64_t seed) {
+		auto const m = static_cast<uint64_t>(0xc6a4a7935bd1e995ull);
+		auto const r = 47;
+
+		uint64_t h = seed ^ (len * m);
+
+		uint64_t const *data = static_cast<uint64_t const *>(key);
+		uint64_t const *end = data + (len/8);
+
+		while (data != end) {
+			uint64_t k = *data++;
+
+			k *= m;
+			k ^= k >> r;
+			k *= m;
+
+			h ^= k;
+			h *= m;
+		}
+
+		if (len & 7) {
+			auto const data2 = reinterpret_cast<unsigned char const *>(data);
+			for (int i = 0; i < (len & 7); ++i)
+				h ^= static_cast<uint64_t>(data2[i]) << (i*8);
+			h *= m;
+		}
+
+		h ^= h >> r;
+		h *= m;
+		h ^= h >> r;
+
+		return h;
+	}
+
+	inline uint64_t hash_string(std::string const& str) {
+		// libstdc++ uses murmur hash for size_t == 8 bytes with this seed
+		// since I messed up and didn't use my own hash function for this and the hash values
+		// are serialized I have to mimic libstdc++'s behavior explicitly
+		size_t seed = static_cast<size_t>(0xc70f6907ull);
+		return murmur_hash_64a(str.data(), str.length(), seed);
+	}
+
 	constexpr uint64_t hash_combine(uint64_t const a, uint64_t const b) {
 		// Combine the two hash values using a bunch of random large primes
 		return 262147 + a * 131101 + b * 65599;
@@ -55,13 +97,7 @@ void get_annotation_string(llvm::SmallVectorImpl<char>& out, clang::Decl const *
 			clang::LangOptions langOpts;
 			clang::PrintingPolicy policy{ langOpts };
 			attr->printPretty(os, policy);
-			// TODO: Calculate the eoaOffset from the string instead of using hardcoded values
-#ifdef _WIN32
-			int eoaOffset = 4;
-#else
-			int eoaOffset = 6;
-#endif
-			auto slice = str.slice(26, str.size() - eoaOffset);
+			auto slice = str.slice(26, str.size() - 6);
 			out.append(slice.begin(), slice.end());
 			break;
 		}
@@ -272,8 +308,8 @@ struct DeclConstexprSerializer : DeclSerializer {
 	std::error_code ec;
 
 	DeclConstexprSerializer(
-			std::string_view outputPath,
-			std::string_view includePrefix,
+			std::string const& outputPath,
+			std::string const& includePrefix,
 			std::vector<std::string> const& sourcePaths);
 	~DeclConstexprSerializer();
 
@@ -295,7 +331,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 
 	void write_type_list();
 
-	void write_header(std::string_view includePrefix, std::vector<std::string> const& filenames);
+	void write_header(std::string const& includePrefix, std::vector<std::string> const& filenames);
 
 	void write_footer();
 
@@ -307,8 +343,8 @@ struct DeclConstexprSerializer : DeclSerializer {
 };
 
 DeclConstexprSerializer::DeclConstexprSerializer(
-		std::string_view outputPath_,
-		std::string_view includePrefix_,
+		std::string const& outputPath_,
+		std::string const& includePrefix_,
 		std::vector<std::string> const& sourcePaths_)
 			: outputPath{ outputPath_ }, fs{ outputPath_, ec } {
 
@@ -438,7 +474,7 @@ void DeclConstexprSerializer::write_type_list() {
 }
 
 void DeclConstexprSerializer::write_header(
-		std::string_view includePrefix, std::vector<std::string> const& filenames) {
+		std::string const& includePrefix, std::vector<std::string> const& filenames) {
 	fs << "#pragma once\n\n";
 
 	fs << "#include <oak_reflect/type_info.h>\n";
@@ -599,8 +635,8 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 	}
 
 	auto typeId = hash_combine(
-			std::hash<std::string>{}(namespaceName),
-			std::hash<std::string>{}(specializationName));
+			hash_string(namespaceName),
+			hash_string(specializationName));
 
 	if (decl->isUnion()) {
 		fs << "\tstatic constexpr UnionTypeInfo typeInfo{ { " << typeId
@@ -658,7 +694,7 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 
 	auto const& underlyingTypeName = decl->getIntegerType().getAsString();
 
-	auto typeId = hash_combine(std::hash<std::string>{}(namespaceName), std::hash<std::string>{}(enumName));
+	auto typeId = hash_combine(hash_string(namespaceName), hash_string(enumName));
 
 	fs << "\tstatic constexpr EnumTypeInfo typeInfo{ { " << typeId
 		<< "ul, TypeInfoKind::ENUM }, \"" << enumName

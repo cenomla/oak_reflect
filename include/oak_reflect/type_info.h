@@ -5,8 +5,6 @@
 #include <oak_util/types.h>
 #include <oak_util/fmt.h>
 
-#undef VOID
-
 #ifdef _MSC_VER
 
 #ifdef OAK_REFLECT_DYNAMIC_LIB
