@@ -22,7 +22,8 @@ gen = executable(
   sources : gen_sources,
   include_directories : clang_includes,
   dependencies : clang_deps,
-  cpp_args : optimize_args)
+  cpp_args : optimize_args,
+  override_options: [ 'b_sanitize=none' ])
 
 gen_tu = executable(
   'gen_tu',
