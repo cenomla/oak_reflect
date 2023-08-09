@@ -1,8 +1,7 @@
 #define OAK_REFLECT_EXPORT_SYMBOLS
-
 #include <oak_reflect/any.h>
 
-#include <cstring>
+#include <string.h>
 
 #include <oak_util/ptr.h>
 
@@ -97,15 +96,15 @@ namespace {
 			auto data = get_member("data");
 			auto count = get_any_struct_array_count(*this);
 
-			void *ptr;
+			void *dataPtr;
 			TypeInfo const *elemType;
 			switch (data.type->kind) {
 				case TypeInfoKind::ARRAY:
-					ptr = data.ptr;
+					dataPtr = data.ptr;
 					elemType = static_cast<ArrayTypeInfo const*>(data.type)->of;
 					break;
 				case TypeInfoKind::POINTER:
-					ptr = data.ptr_value();
+					dataPtr = data.ptr_value();
 					elemType = static_cast<PointerTypeInfo const*>(data.type)->to;
 					break;
 				default:
@@ -113,7 +112,7 @@ namespace {
 			}
 
 			if (index < count) {
-				return { add_ptr(ptr, index * type_size(elemType)), elemType };
+				return { add_ptr(dataPtr, index * type_size(elemType)), elemType };
 			} else {
 				return { nullptr, elemType };
 			}
@@ -178,7 +177,7 @@ namespace {
 		result.type = type;
 		result.ptr = allocator->allocate(type_size(type), type_align(type));
 
-		std::memcpy(result.ptr, ptr, type_size(type));
+		memcpy(result.ptr, ptr, type_size(type));
 
 		return result;
 	}
@@ -285,7 +284,7 @@ namespace {
 					if (field0.typeInfo->uid == field1.typeInfo->uid) {
 						auto size = type_size(field0.typeInfo);
 						if (size)
-							std::memcpy(
+							memcpy(
 									add_ptr(dst.ptr, field0.offset),
 									add_ptr(src.ptr, field1.offset),
 									size);
@@ -325,7 +324,7 @@ namespace {
 				}
 			}
 		} else {
-			std::memcpy(dst.ptr, src.ptr, type_size(dst.type));
+			memcpy(dst.ptr, src.ptr, type_size(dst.type));
 		}
 	}
 	*/

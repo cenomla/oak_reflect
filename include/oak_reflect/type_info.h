@@ -388,11 +388,11 @@ namespace oak {
 	}
 
 	template<typename T>
-	constexpr String enum_name(T e, TypeInfo const *typeInfo) {
+	constexpr String enum_name(T enumValue, TypeInfo const *typeInfo) {
 		if (typeInfo->kind == TypeInfoKind::ENUM) {
 			auto ei = static_cast<EnumTypeInfo const*>(typeInfo);
 			for (auto constant : ei->constants) {
-				if (constant.value == static_cast<u64>(eni(e))) {
+				if (constant.value == static_cast<u64>(eni(enumValue))) {
 					return constant.name;
 				}
 			}

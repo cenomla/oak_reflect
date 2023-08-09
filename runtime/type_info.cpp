@@ -62,6 +62,7 @@ namespace {
 					// The potential attribute match turns out to just be a sub string of the attribute we're
 					// looking at, skip this section
 					state = 3;
+					[[fallthrough]];
 				case 2: case 3:
 					++i;
 					break;

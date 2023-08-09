@@ -79,7 +79,7 @@ namespace {
 		// since I messed up and didn't use my own hash function for this and the hash values
 		// are serialized I have to mimic libstdc++'s behavior explicitly
 		size_t seed = static_cast<size_t>(0xc70f6907ull);
-		return murmur_hash_64a(str.data(), str.length(), seed);
+		return murmur_hash_64a(str.data(), static_cast<int>(str.length()), seed);
 	}
 
 	constexpr uint64_t hash_combine(uint64_t const a, uint64_t const b) {

@@ -1,5 +1,5 @@
 project('oak_rtti', ['cpp'],
-  default_options : ['cpp_eh=none', 'cpp_rtti=false', 'cpp_std=c++17', 'warning_level=3'])
+  default_options : ['cpp_eh=none', 'cpp_rtti=false', 'cpp_std=c++17', 'warning_level=3', 'werror=true'])
 
 cxx = meson.get_compiler('cpp')
 
