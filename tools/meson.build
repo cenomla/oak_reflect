@@ -30,5 +30,6 @@ gen_tu = executable(
   sources : gen_tu_sources,
   include_directories : clang_includes,
   dependencies : llvm_deps,
-  cpp_args : optimize_args)
+  cpp_args : optimize_args,
+  override_options: [ 'b_sanitize=none' ])
 
