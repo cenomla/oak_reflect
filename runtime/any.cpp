@@ -173,6 +173,11 @@ namespace {
 	}
 
 	Any Any::shallow_copy(Allocator *allocator) const {
+		assert(ptr);
+		assert(type);
+		assert(type_size(type));
+		assert(type_align(type));
+
 		Any result;
 		result.type = type;
 		result.ptr = allocator->allocate(type_size(type), type_align(type));
