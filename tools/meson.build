@@ -10,7 +10,7 @@ gen_tu_sources = [
 
 optimize_args = []
 if get_option('optimize_tools')
-  if host_machine.system() == 'windows'
+  if build_machine.system() == 'windows'
     optimize_args = [ '/O2' ]
   else
     optimize_args = [ '-O3', '-march=native', '-flto' ]
@@ -23,7 +23,8 @@ gen = executable(
   include_directories : clang_includes,
   dependencies : clang_deps,
   cpp_args : optimize_args,
-  override_options: [ 'b_sanitize=none' ])
+  override_options: [ 'b_sanitize=none', 'cpp_rtti=false' ],
+  native : true)
 
 gen_tu = executable(
   'gen_tu',
@@ -31,5 +32,6 @@ gen_tu = executable(
   include_directories : clang_includes,
   dependencies : llvm_deps,
   cpp_args : optimize_args,
-  override_options: [ 'b_sanitize=none' ])
+  override_options: [ 'b_sanitize=none', 'cpp_rtti=false' ],
+  native : true)
 
