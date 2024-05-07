@@ -23,6 +23,8 @@ namespace {
 }
 
 	Any Any::get_member(String name, FieldInfo const ** info) const noexcept {
+		if (info)
+			*info = nullptr;
 		if (type->kind == TypeInfoKind::STRUCT) {
 			auto si = static_cast<StructTypeInfo const*>(type);
 			for (auto& field : si->fields) {
