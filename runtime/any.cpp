@@ -190,7 +190,8 @@ namespace {
 	}
 
 	bool operator==(Any lhs, Any rhs) noexcept {
-		if (lhs.type != rhs.type)
+		assert(lhs.type && rhs.type);
+		if (lhs.type->uid != rhs.type->uid)
 			return false;
 
 		if (lhs.ptr == rhs.ptr)
