@@ -89,6 +89,97 @@ namespace {
 
 }
 
+std::string get_mangled_name(clang::Decl const *decl);
+std::string get_specialization_name(clang::CXXRecordDecl const *decl);
+std::string get_enum_name(clang::EnumDecl const* decl);
+std::string get_namespace_name(clang::TagDecl const* decl);
+
+std::string get_mangled_name(clang::Decl const *decl) {
+	clang::ASTNameGenerator nameGen{ decl->getASTContext() };
+	return nameGen.getName(decl);
+}
+
+std::string get_specialization_name(clang::CXXRecordDecl const *decl) {
+	llvm::SmallString<64> result;
+	llvm::raw_svector_ostream ss{ result };
+
+	ss << decl->getName();
+
+	if (decl->getTemplateSpecializationKind() != 0) {
+		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(decl);
+		ss << "<";
+		bool first = true;
+		for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
+			if (!first) {
+				// Add comma's to the template argument list
+				ss << ", ";
+			}
+			first = false;
+			auto kind = arg.getKind();
+			switch (kind) {
+				case clang::TemplateArgument::Type:
+					{
+						auto const& qualType = arg.getAsType();
+						auto type = qualType.getTypePtr();
+						if (type->isRecordType()) {
+							auto recordDecl = type->getAsCXXRecordDecl();
+							ss << get_namespace_name(recordDecl) << get_specialization_name(recordDecl);
+						} else if (type->isEnumeralType()) {
+							auto enumDecl = static_cast<clang::EnumType const*>(type)->getDecl();
+							ss << get_namespace_name(enumDecl) << get_enum_name(enumDecl);
+						} else if (type->isPointerType()) {
+							auto pointeeQualType = static_cast<clang::PointerType const*>(type)->getPointeeType();
+							auto pointeeType = pointeeQualType.getTypePtr();
+							if (pointeeType->isRecordType()) {
+								auto recordDecl = pointeeType->getAsCXXRecordDecl();
+								ss << get_namespace_name(recordDecl) << get_specialization_name(recordDecl) << "*";
+							} else if (pointeeType->isEnumeralType()) {
+								auto enumDecl = static_cast<clang::EnumType const*>(type)->getDecl();
+								ss << get_namespace_name(enumDecl) << get_enum_name(enumDecl) << "*";
+							} else {
+								ss << qualType.getAsString() << "*";
+							}
+						} else {
+							ss << qualType.getAsString();
+						}
+
+					} break;
+				case clang::TemplateArgument::Integral:
+					{
+						auto const& integral = arg.getAsIntegral();
+						ss << integral.toString(10);
+					} break;
+				default:
+					assert(false && "Template argument type unsupported");
+					break;
+			}
+		}
+		ss << ">";
+	}
+
+	return result.str().str();
+}
+
+std::string get_enum_name(clang::EnumDecl const* decl) {
+	return decl->getName().str();
+}
+
+std::string get_namespace_name(clang::TagDecl const* decl) {
+	std::string result;
+
+	auto nsContext = decl->getParent();
+	while (nsContext) {
+		if (nsContext->isNamespace()) {
+			result = (static_cast<clang::NamespaceDecl const*>(nsContext)->getName() + "::" + result).str();
+		} else if (nsContext->isRecord()) {
+			result = (static_cast<clang::RecordDecl const*>(nsContext)->getName() + "::" + result).str();
+		}
+		nsContext = nsContext->getLexicalParent();
+	}
+
+	return result;
+}
+
 void get_annotation_string(llvm::SmallVectorImpl<char>& out, clang::Decl const *decl) {
 	for (auto const& attr : decl->attrs()) {
 		if (attr->getKind() == clang::attr::Annotate) {
@@ -313,14 +404,6 @@ struct DeclConstexprSerializer : DeclSerializer {
 			std::vector<std::string> const& sourcePaths);
 	~DeclConstexprSerializer();
 
-	std::string get_mangled_name(clang::Decl const *decl);
-
-	std::string get_specialization_name(clang::CXXRecordDecl const *decl);
-
-	std::string get_enum_name(clang::EnumDecl const* decl);
-
-	std::string get_namespace_name(clang::TagDecl const* decl);
-
 	void write_start_type_list();
 
 	void write_end_type_list();
@@ -357,92 +440,6 @@ DeclConstexprSerializer::~DeclConstexprSerializer() {
 	write_end_type_list();
 	write_type_list();
 	write_footer();
-}
-
-std::string DeclConstexprSerializer::get_mangled_name(clang::Decl const *decl) {
-	clang::ASTNameGenerator nameGen{ decl->getASTContext() };
-	return nameGen.getName(decl);
-}
-
-std::string DeclConstexprSerializer::get_specialization_name(clang::CXXRecordDecl const *decl) {
-	llvm::SmallString<64> result;
-	llvm::raw_svector_ostream ss{ result };
-
-	ss << decl->getName();
-
-	if (decl->getTemplateSpecializationKind() != 0) {
-		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(decl);
-		ss << "<";
-		bool first = true;
-		for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
-			if (!first) {
-				// Add comma's to the template argument list
-				ss << ", ";
-			}
-			first = false;
-			auto kind = arg.getKind();
-			switch (kind) {
-				case clang::TemplateArgument::Type:
-					{
-						auto const& qualType = arg.getAsType();
-						auto type = qualType.getTypePtr();
-						if (type->isRecordType()) {
-							auto recordDecl = type->getAsCXXRecordDecl();
-							ss << get_namespace_name(recordDecl) << get_specialization_name(recordDecl);
-						} else if (type->isEnumeralType()) {
-							auto enumDecl = static_cast<clang::EnumType const*>(type)->getDecl();
-							ss << get_namespace_name(enumDecl) << get_enum_name(enumDecl);
-						} else if (type->isPointerType()) {
-							auto pointeeQualType = static_cast<clang::PointerType const*>(type)->getPointeeType();
-							auto pointeeType = pointeeQualType.getTypePtr();
-							if (pointeeType->isRecordType()) {
-								auto recordDecl = pointeeType->getAsCXXRecordDecl();
-								ss << get_namespace_name(recordDecl) << get_specialization_name(recordDecl) << "*";
-							} else if (pointeeType->isEnumeralType()) {
-								auto enumDecl = static_cast<clang::EnumType const*>(type)->getDecl();
-								ss << get_namespace_name(enumDecl) << get_enum_name(enumDecl) << "*";
-							} else {
-								ss << qualType.getAsString() << "*";
-							}
-						} else {
-							ss << qualType.getAsString();
-						}
-
-					} break;
-				case clang::TemplateArgument::Integral:
-					{
-						auto const& integral = arg.getAsIntegral();
-						ss << integral.toString(10);
-					} break;
-				default:
-					assert(false && "Template argument type unsupported");
-					break;
-			}
-		}
-		ss << ">";
-	}
-
-	return result.str().str();
-}
-
-std::string DeclConstexprSerializer::get_enum_name(clang::EnumDecl const* decl) {
-	return decl->getName().str();
-}
-
-std::string DeclConstexprSerializer::get_namespace_name(clang::TagDecl const* decl) {
-	std::string result;
-
-	auto nsContext = decl->getParent();
-	while (nsContext) {
-		if (nsContext->isNamespace()) {
-			result = (static_cast<clang::NamespaceDecl const*>(nsContext)->getName() + "::" + result).str();
-		} else if (nsContext->isRecord()) {
-			result = (static_cast<clang::RecordDecl const*>(nsContext)->getName() + "::" + result).str();
-		}
-		nsContext = nsContext->getLexicalParent();
-	}
-
-	return result;
 }
 
 void DeclConstexprSerializer::write_start_type_list() {
