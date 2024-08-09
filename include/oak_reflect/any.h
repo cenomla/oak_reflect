@@ -98,6 +98,16 @@ namespace {
 					return { add_ptr(ptr, field.offset), field.typeInfo };
 				}
 			}
+		} else if (type->kind == TypeInfoKind::UNION) {
+			auto si = static_cast<UnionTypeInfo const*>(type);
+			for (auto& field : si->fields) {
+				if (field.name == name) {
+					if (info) {
+						*info = &field;
+					}
+					return { add_ptr(ptr, field.offset), field.typeInfo };
+				}
+			}
 		}
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
@@ -134,6 +144,13 @@ namespace {
 				}
 			}
 			for (auto& field : si->fields) {
+				if (field.name == name) {
+					return { add_ptr(ptr, field.offset), field.typeInfo };
+				}
+			}
+		} else if (type->kind == TypeInfoKind::UNION) {
+			auto ui = static_cast<UnionTypeInfo const*>(type);
+			for (auto& field : ui->fields) {
 				if (field.name == name) {
 					return { add_ptr(ptr, field.offset), field.typeInfo };
 				}
@@ -334,8 +351,8 @@ namespace {
 			}
 			case TypeInfoKind::UNION:
 			{
-				// TODO: Union compare
-				return false;
+				auto ui = static_cast<UnionTypeInfo const*>(lhs.type);
+				return memcmp(lhs.ptr, rhs.ptr, ui->size) == 0;
 			};
 			case TypeInfoKind::ENUM:
 				return lhs.get_enum_value() == rhs.get_enum_value();
