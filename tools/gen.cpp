@@ -40,156 +40,34 @@ namespace {
 		llvm::cl::value_desc{"reflection include prefix"},
 	};
 
-	inline uint64_t murmur_hash_64a(void const *key, int len, uint64_t seed) {
-		auto const m = static_cast<uint64_t>(0xc6a4a7935bd1e995ull);
-		auto const r = 47;
-
-		uint64_t h = seed ^ (len * m);
-
-		uint64_t const *data = static_cast<uint64_t const *>(key);
-		uint64_t const *end = data + (len/8);
-
-		while (data != end) {
-			uint64_t k = *data++;
-
-			k *= m;
-			k ^= k >> r;
-			k *= m;
-
-			h ^= k;
-			h *= m;
-		}
-
-		if (len & 7) {
-			auto const data2 = reinterpret_cast<unsigned char const *>(data);
-			for (int i = 0; i < (len & 7); ++i)
-				h ^= static_cast<uint64_t>(data2[i]) << (i*8);
-			h *= m;
-		}
-
-		h ^= h >> r;
-		h *= m;
-		h ^= h >> r;
-
-		return h;
-	}
-
-	inline uint64_t hash_string(std::string const& str) {
-		// libstdc++ uses murmur hash for size_t == 8 bytes with this seed
-		// since I messed up and didn't use my own hash function for this and the hash values
-		// are serialized I have to mimic libstdc++'s behavior explicitly
-		size_t seed = static_cast<size_t>(0xc70f6907ull);
-		return murmur_hash_64a(str.data(), static_cast<int>(str.length()), seed);
-	}
-
-	constexpr uint64_t hash_combine(uint64_t const a, uint64_t const b) {
-		// Combine the two hash values using a bunch of random large primes
-		return 262147 + a * 131101 + b * 65599;
-	}
+	llvm::cl::opt<bool> onlyMainOption{
+		"onlyIncludeMain",
+		llvm::cl::desc{"Set to true to only generate info for types that are in the main input file"},
+		llvm::cl::value_desc{"only generate types defined in the main file"},
+		llvm::cl::init(false),
+	};
 
 }
 
 std::string get_mangled_name(clang::Decl const *decl);
-std::string get_specialization_name(clang::CXXRecordDecl const *decl);
-std::string get_enum_name(clang::EnumDecl const* decl);
-std::string get_namespace_name(clang::TagDecl const* decl);
+std::string get_type_name(clang::TypeDecl const *decl);
 
 std::string get_mangled_name(clang::Decl const *decl) {
 	clang::ASTNameGenerator nameGen{ decl->getASTContext() };
 	return nameGen.getName(decl);
 }
 
-std::string get_specialization_name(clang::CXXRecordDecl const *decl) {
-	llvm::SmallString<64> result;
-	llvm::raw_svector_ostream ss{ result };
-
-	ss << decl->getName();
-
-	if (decl->getTemplateSpecializationKind() != 0) {
-		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(decl);
-		ss << "<";
-		bool first = true;
-		for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
-			if (!first) {
-				// Add comma's to the template argument list
-				ss << ", ";
-			}
-			first = false;
-			auto kind = arg.getKind();
-			switch (kind) {
-				case clang::TemplateArgument::Type:
-					{
-						auto const& qualType = arg.getAsType();
-						auto type = qualType.getTypePtr();
-						if (type->isRecordType()) {
-							auto recordDecl = type->getAsCXXRecordDecl();
-							ss << get_namespace_name(recordDecl) << get_specialization_name(recordDecl);
-						} else if (type->isEnumeralType()) {
-							auto enumDecl = static_cast<clang::EnumType const*>(type)->getDecl();
-							ss << get_namespace_name(enumDecl) << get_enum_name(enumDecl);
-						} else if (type->isPointerType()) {
-							auto pointeeQualType = static_cast<clang::PointerType const*>(type)->getPointeeType();
-							auto pointeeType = pointeeQualType.getTypePtr();
-							if (pointeeType->isRecordType()) {
-								auto recordDecl = pointeeType->getAsCXXRecordDecl();
-								ss << get_namespace_name(recordDecl) << get_specialization_name(recordDecl) << "*";
-							} else if (pointeeType->isEnumeralType()) {
-								auto enumDecl = static_cast<clang::EnumType const*>(type)->getDecl();
-								ss << get_namespace_name(enumDecl) << get_enum_name(enumDecl) << "*";
-							} else {
-								ss << qualType.getAsString() << "*";
-							}
-						} else {
-							ss << qualType.getAsString();
-						}
-
-					} break;
-				case clang::TemplateArgument::Integral:
-					{
-						auto const& integral = arg.getAsIntegral();
-						ss << integral.toString(10);
-					} break;
-				default:
-					assert(false && "Template argument type unsupported");
-					break;
-			}
-		}
-		ss << ">";
-	}
-
-	return result.str().str();
-}
-
-std::string get_enum_name(clang::EnumDecl const* decl) {
-	return decl->getName().str();
-}
-
-std::string get_namespace_name(clang::TagDecl const* decl) {
-	std::string result;
-
-	auto nsContext = decl->getParent();
-	while (nsContext) {
-		if (nsContext->isNamespace()) {
-			result = (static_cast<clang::NamespaceDecl const*>(nsContext)->getName() + "::" + result).str();
-		} else if (nsContext->isRecord()) {
-			result = (static_cast<clang::RecordDecl const*>(nsContext)->getName() + "::" + result).str();
-		}
-		nsContext = nsContext->getLexicalParent();
-	}
-
-	return result;
+std::string get_type_name(clang::TypeDecl const *decl) {
+	auto qt = clang::QualType{ decl->getTypeForDecl(), 0 };
+	return qt.getAsString(decl->getASTContext().getPrintingPolicy());
 }
 
 void get_annotation_string(llvm::SmallVectorImpl<char>& out, clang::Decl const *decl) {
 	for (auto const& attr : decl->attrs()) {
 		if (attr->getKind() == clang::attr::Annotate) {
-			llvm::SmallString<64> str;
-			llvm::raw_svector_ostream os{ str };
-			clang::LangOptions langOpts;
-			clang::PrintingPolicy policy{ langOpts };
-			attr->printPretty(os, policy);
-			auto slice = str.slice(26, str.size() - 6);
-			out.append(slice.begin(), slice.end());
+			auto annoAttr = static_cast<clang::AnnotateAttr*>(attr);
+			auto str = annoAttr->getAnnotation();
+			out.append(str.begin(), str.end());
 			break;
 		}
 	}
@@ -301,6 +179,12 @@ void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 			|| !record->isThisDeclarationADefinition()
 			|| !record->isCompleteDefinition())
 		return;
+	if (onlyMainOption == true) {
+		auto& context = record->getASTContext();
+		if (!context.getSourceManager().isInMainFile(record->getLocation())) {
+			return;
+		}
+	}
 	if (clang::isTemplateInstantiation(record->getTemplateSpecializationKind())) {
 		// Only reflect template type whose template type parameters are also being reflected
 		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(record);
@@ -334,11 +218,20 @@ void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 }
 
 void DeclFinder::parse_enum(clang::EnumDecl const *enumeration) {
+	if (enumeration->isDependentType()
+			|| !enumeration->isThisDeclarationADefinition()
+			|| !enumeration->isCompleteDefinition())
+		return;
+	if (onlyMainOption == true) {
+		auto& context = enumeration->getASTContext();
+		if (!context.getSourceManager().isInMainFile(enumeration->getLocation())) {
+			return;
+		}
+	}
 	add_decl(enumeration);
 }
 
 void DeclFinder::add_decl(clang::TagDecl const *declToAdd) {
-	//decls.insert(declToAdd);
 	decls.push_back(declToAdd);
 }
 
@@ -458,12 +351,12 @@ void DeclConstexprSerializer::write_end_type_list() {
 
 void DeclConstexprSerializer::write_record_type_list_item(clang::CXXRecordDecl const* decl) {
 	llvm::raw_string_ostream ss{ typeListString };
-	ss << "&Reflect<" << get_namespace_name(decl) << get_specialization_name(decl) << ">::typeInfo,\n";
+	ss << "&Reflect<" << get_type_name(decl) << ">::typeInfo,\n";
 }
 
 void DeclConstexprSerializer::write_enum_type_list_item(clang::EnumDecl const* decl) {
 	llvm::raw_string_ostream ss{ typeListString };
-	ss << "&Reflect<" << get_namespace_name(decl) << get_enum_name(decl) << ">::typeInfo,\n";
+	ss << "&Reflect<" << get_type_name(decl) << ">::typeInfo,\n";
 }
 
 void DeclConstexprSerializer::write_type_list() {
@@ -491,11 +384,10 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 	llvm::SmallString<64> annotation;
 	get_annotation_string(annotation, decl);
 
-	auto namespaceName = get_namespace_name(decl);
-	auto specializationName = get_specialization_name(decl);
+	auto typeName = get_type_name(decl);
 
-	fs << "template<> struct Reflect<" << namespaceName << specializationName << "> {\n";
-	fs <<  "\tusing T = " << namespaceName << specializationName << ";\n";
+	fs << "template<> struct Reflect<" << typeName << "> {\n";
+	fs <<  "\tusing T = " << typeName << ";\n";
 
 	bool hasFields = false;
 	bool hasMethods = false;
@@ -631,13 +523,9 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 		fs << "\t};\n";
 	}
 
-	auto typeId = hash_combine(
-			hash_string(namespaceName),
-			hash_string(specializationName));
-
 	if (decl->isUnion()) {
-		fs << "\tstatic constexpr UnionTypeInfo typeInfo{ { " << typeId
-			<< "ul, TypeInfoKind::UNION }, \"" << specializationName
+		fs << "\tstatic constexpr UnionTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
+			<< "), TypeInfoKind::UNION }, \"" << typeName
 			<< "\", \"" << annotation
 			<< "\", sizeof(T), alignof(T), " << (hasFields ? "fields" : "{}")
 			<< ", &detail::generic_construct<T> };\n";
@@ -645,19 +533,18 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 		// Get the first base
 		if (decl->getNumBases()) {
 			auto base = decl->bases_begin()->getType().getTypePtr()->getAsCXXRecordDecl();
-			auto baseNamespaceName = get_namespace_name(base);
-			auto baseName = get_specialization_name(base);
-			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { " << typeId
-				<< "ul, TypeInfoKind::STRUCT }, \"" << specializationName
+			auto baseName = get_type_name(base);
+			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
+				<< "), TypeInfoKind::STRUCT }, \"" << typeName
 				<< "\", \"" << annotation
-				<< "\", sizeof(T), alignof(T), &Reflect<" << baseNamespaceName << baseName
+				<< "\", sizeof(T), alignof(T), &Reflect<" << baseName
 				<< ">::typeInfo, " << (hasFields ? "fields" : "{}")
 				<< ", " << (hasMethods ? "methods" : "{}")
 				<< ", " << (hasProperties ? "properties" : "{}")
 				<< ", &detail::generic_construct<T> };\n";
 		} else {
-			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { " << typeId
-				<< "ul, TypeInfoKind::STRUCT }, \"" << specializationName
+			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
+				<< "), TypeInfoKind::STRUCT }, \"" << typeName
 				<< "\", \"" << annotation
 				<< "\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, " << (hasFields ? "fields" : "{}")
 				<< ", " << (hasMethods ? "methods" : "{}")
@@ -672,11 +559,10 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 	llvm::SmallString<64> annotation;
 	get_annotation_string(annotation, decl);
 
-	auto namespaceName = get_namespace_name(decl);
-	auto enumName = get_enum_name(decl);
+	auto typeName = get_type_name(decl);
 
-	fs << "template<> struct Reflect<" << namespaceName << enumName << "> {\n";
-	fs << "\tusing T = " << namespaceName << enumName << ";\n";
+	fs << "template<> struct Reflect<" << typeName << "> {\n";
+	fs << "\tusing T = " << typeName << ";\n";
 
 	bool hasConstants = decl->enumerator_begin() != decl->enumerator_end();
 	if (hasConstants) {
@@ -691,10 +577,8 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 
 	auto const& underlyingTypeName = decl->getIntegerType().getAsString();
 
-	auto typeId = hash_combine(hash_string(namespaceName), hash_string(enumName));
-
-	fs << "\tstatic constexpr EnumTypeInfo typeInfo{ { " << typeId
-		<< "ul, TypeInfoKind::ENUM }, \"" << enumName
+	fs << "\tstatic constexpr EnumTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
+		<< "), TypeInfoKind::ENUM }, \"" << typeName
 		<< "\", \"" << annotation
 		<< "\", &Reflect<" << underlyingTypeName
 		<< ">::typeInfo, " << (hasConstants ? "enumConstants" : "{}")

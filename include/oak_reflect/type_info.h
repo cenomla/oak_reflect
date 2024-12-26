@@ -3,7 +3,9 @@
 #include <type_traits>
 
 #include <oak_util/types.h>
-#include <oak_util/fmt.h>
+#include <oak_util/hash.h>
+#include <oak_util/containers.h>
+#include <oak_util/algorithm.h>
 
 #ifdef _MSC_VER
 
@@ -39,7 +41,14 @@ namespace oak {
 			}
 		}
 
+		template<usize C>
+		constexpr u64 type_uid_from_literal(char const (&str)[C]) {
+			return hash_string(str, C);
+		}
+
 	}
+
+#define OAK_TYPE_UID(...) oak::detail::type_uid_from_literal(#__VA_ARGS__)
 
 	enum class TypeInfoKind {
 		NONE,
@@ -143,14 +152,14 @@ namespace oak {
 
 	constexpr PointerTypeInfo make_pointer_type_info(TypeInfo const* pointeeTypeInfo) {
 		return {
-			{ pointeeTypeInfo->uid ^ 0x1234123412341234, TypeInfoKind::POINTER },
+			{ hash_combine(pointeeTypeInfo->uid, OAK_TYPE_UID(*)), TypeInfoKind::POINTER },
 			pointeeTypeInfo,
 		};
 	}
 
 	constexpr ArrayTypeInfo make_array_type_info(TypeInfo const* elementTypeInfo, i64 count) {
 		return {
-			{ elementTypeInfo->uid ^ 0x5678567856785678, TypeInfoKind::ARRAY },
+			{ hash_combine(elementTypeInfo->uid, hash_int(count)), TypeInfoKind::ARRAY },
 			elementTypeInfo, count,
 		};
 	}
@@ -168,55 +177,67 @@ namespace oak {
 	// Built in types:
 
 	template<> struct Reflect<void> {
-		static constexpr TypeInfo typeInfo{ 1ul, TypeInfoKind::VOID };
+		static constexpr TypeInfo typeInfo{ OAK_TYPE_UID(void), TypeInfoKind::VOID };
 	};
 
 	template<> struct Reflect<char> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 13ul, TypeInfoKind::PRIMITIVE }, "char", sizeof(char), alignof(char) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(char), TypeInfoKind::PRIMITIVE }, "char", sizeof(char), alignof(char) };
 	};
 
 	template<> struct Reflect<i8> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 2ul, TypeInfoKind::PRIMITIVE }, "int8", sizeof(i8), alignof(i8) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(i8), TypeInfoKind::PRIMITIVE }, "i8", sizeof(i8), alignof(i8) };
 	};
 
 	template<> struct Reflect<i16> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 3ul, TypeInfoKind::PRIMITIVE }, "int16", sizeof(i16), alignof(i16) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(i16), TypeInfoKind::PRIMITIVE }, "i16", sizeof(i16), alignof(i16) };
 	};
 
 	template<> struct Reflect<i32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 4ul, TypeInfoKind::PRIMITIVE }, "int32", sizeof(i32), alignof(i32) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(i32), TypeInfoKind::PRIMITIVE }, "i32", sizeof(i32), alignof(i32) };
 	};
 
 	template<> struct Reflect<i64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 5ul, TypeInfoKind::PRIMITIVE }, "int64", sizeof(i64), alignof(i64) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(i64), TypeInfoKind::PRIMITIVE }, "i64", sizeof(i64), alignof(i64) };
 	};
 
 	template<> struct Reflect<u8> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 6ul, TypeInfoKind::PRIMITIVE }, "uint8", sizeof(i8), alignof(i8) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(u8), TypeInfoKind::PRIMITIVE }, "u8", sizeof(i8), alignof(i8) };
 	};
 
 	template<> struct Reflect<u16> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 7ul, TypeInfoKind::PRIMITIVE }, "uint16", sizeof(i16), alignof(i16) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(u16), TypeInfoKind::PRIMITIVE }, "u16", sizeof(i16), alignof(i16) };
 	};
 
 	template<> struct Reflect<u32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 8ul, TypeInfoKind::PRIMITIVE }, "uint32", sizeof(i32), alignof(i32) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(u32), TypeInfoKind::PRIMITIVE }, "u32", sizeof(i32), alignof(i32) };
 	};
 
 	template<> struct Reflect<u64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 9ul, TypeInfoKind::PRIMITIVE }, "uint64", sizeof(i64), alignof(i64) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(u64), TypeInfoKind::PRIMITIVE }, "u64", sizeof(i64), alignof(i64) };
 	};
 
 	template<> struct Reflect<f32> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 10ul, TypeInfoKind::PRIMITIVE }, "float32", sizeof(f32), alignof(f32) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(f32), TypeInfoKind::PRIMITIVE }, "f32", sizeof(f32), alignof(f32) };
 	};
 
 	template<> struct Reflect<f64> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 11ul, TypeInfoKind::PRIMITIVE }, "float64", sizeof(f64), alignof(f64) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(f64), TypeInfoKind::PRIMITIVE }, "f64", sizeof(f64), alignof(f64) };
 	};
 
 	template<> struct Reflect<bool> {
-		static constexpr PrimitiveTypeInfo typeInfo{ { 12ul, TypeInfoKind::PRIMITIVE }, "bool", sizeof(bool), alignof(bool) };
+		static constexpr PrimitiveTypeInfo typeInfo{
+			{ OAK_TYPE_UID(bool), TypeInfoKind::PRIMITIVE }, "bool", sizeof(bool), alignof(bool) };
 	};
 
 	// Meta-generated types:
@@ -392,10 +413,6 @@ namespace oak {
 
 	constexpr bool has_attribute(FieldInfo const *fieldInfo, String attribute) {
 		return attribute_in_annotation(fieldInfo->annotation, attribute);
-	}
-
-	constexpr PointerTypeInfo pointer_type_info_to_type(TypeInfo const *typeInfo) {
-		return { { typeInfo->uid ^ 0x1234123412341234, TypeInfoKind::POINTER }, typeInfo };
 	}
 
 	template<typename T>
