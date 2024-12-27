@@ -7,6 +7,8 @@
 #include <oak_util/containers.h>
 #include <oak_util/algorithm.h>
 
+#include "type_uid.h"
+
 #ifdef _MSC_VER
 
 #ifdef OAK_REFLECT_DYNAMIC_LIB
@@ -40,15 +42,7 @@ namespace oak {
 				new (obj) T{};
 			}
 		}
-
-		template<usize C>
-		constexpr u64 type_uid_from_literal(char const (&str)[C]) {
-			return hash_string(str, C);
-		}
-
 	}
-
-#define OAK_TYPE_UID(...) oak::detail::type_uid_from_literal(#__VA_ARGS__)
 
 	enum class TypeInfoKind {
 		NONE,

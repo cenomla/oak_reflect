@@ -12,6 +12,7 @@ namespace oak {
 
 		void add_type(TypeInfo const *typeInfo);
 		i64 type_index(TypeInfo const *typeInfo) const;
+		i64 type_index(u64 uid) const;
 
 		TypeInfo const* find_type_with_name(String name, i64 *index = nullptr) const;
 		TypeInfo const* find_type_with_uid(u64 uid, i64 *index = nullptr) const;

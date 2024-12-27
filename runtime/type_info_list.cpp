@@ -23,6 +23,15 @@ namespace oak {
 		return -1;
 	}
 
+	i64 TypeCategory::type_index(u64 uid) const {
+		for (i64 i = 0; i < types.count; ++i) {
+			if (types[i]->uid == uid) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
 	TypeInfo const* TypeCategory::find_type_with_name(String name, i64 *index) const {
 		if (index)
 			*index = -1;
