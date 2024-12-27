@@ -350,7 +350,7 @@ namespace oak {
 		case TypeInfoKind::PRIMITIVE: return static_cast<PrimitiveTypeInfo const*>(typeInfo)->name;
 		case TypeInfoKind::STRUCT: return static_cast<StructTypeInfo const*>(typeInfo)->name;
 		case TypeInfoKind::UNION: return static_cast<UnionTypeInfo const*>(typeInfo)->name;
-		case TypeInfoKind::ENUM: return type_name(static_cast<EnumTypeInfo const*>(typeInfo)->underlyingType);
+		case TypeInfoKind::ENUM: return static_cast<EnumTypeInfo const*>(typeInfo)->name;
 		default: return "";
 		}
 	}
