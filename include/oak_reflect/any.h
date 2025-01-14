@@ -27,14 +27,19 @@ namespace oak {
 			return { value, &Reflect<T>::typeInfo };
 		}
 
+		// Member functions
 		Any get_member(String name, FieldInfo const ** info = nullptr) const noexcept;
 		Any get_member(FieldInfo const *info) const noexcept;
 		CAny get_property(String name, PropertyInfo const ** info = nullptr) const noexcept;
 		CAny get_property(PropertyInfo const *info) const noexcept;
 		CAny get_member_or_property(String name) const noexcept;
 
+		// Array functions
 		i64 get_array_count() const noexcept;
 		Any get_element(i64 index) const noexcept;
+
+		// Variant functions
+		Any get_variant_value(Any *outVarType = nullptr) const noexcept;
 
 		void construct() noexcept;
 
@@ -59,6 +64,7 @@ namespace oak {
 		u64 get_enum_value() const noexcept;
 
 		Any shallow_copy(Allocator *allocator) const;
+		Any deep_copy(Allocator *allocator) const;
 	};
 
 	bool operator==(Any lhs, Any rhs) noexcept;
@@ -68,8 +74,7 @@ namespace oak {
 	}
 
 	void copy_fields(Any dst, Any src);
-	// TODO: Fix copy deep
-	void copy_deep(Any dst, Any src, Allocator *allocator);
+	void copy_deep(Allocator *allocator, Any dst, Any src);
 
 namespace {
 
@@ -202,6 +207,32 @@ namespace {
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
 
+	inline Any Any::get_variant_value(Any *outVarType) const noexcept {
+		assert(has_attribute(type, "variant"));
+
+		if (outVarType)
+			*outVarType = { nullptr, &Reflect<NoType>::typeInfo };
+
+		auto varType = get_member("type");
+		auto varValue = get_member("value");
+
+		// Type must be an enum type, value must be a union
+		if (varType.type->kind != TypeInfoKind::ENUM || varValue.type->kind != TypeInfoKind::UNION)
+			return { nullptr, &Reflect<NoType>::typeInfo };
+
+		auto unionInfo = static_cast<UnionTypeInfo const*>(varValue.type);
+
+		auto fieldIdx = static_cast<i64>(varType.get_enum_value());
+		if (fieldIdx < 0 || fieldIdx >= unionInfo->fields.count)
+			return { nullptr, &Reflect<NoType>::typeInfo };
+
+		if (outVarType)
+			*outVarType = varType;
+
+		auto activeField = &unionInfo->fields[fieldIdx];
+		return varValue.get_member(activeField);
+	}
+
 	inline void Any::construct() noexcept {
 		switch (type->kind) {
 			case TypeInfoKind::PRIMITIVE:
@@ -270,6 +301,21 @@ namespace {
 		result.ptr = allocator->allocate(type_size(type), type_align(type));
 
 		memcpy(result.ptr, ptr, type_size(type));
+
+		return result;
+	}
+
+	inline Any Any::deep_copy(Allocator *allocator) const {
+		assert(ptr);
+		assert(type);
+		assert(type_size(type));
+		assert(type_align(type));
+
+		Any result;
+		result.type = type;
+		result.ptr = allocator->allocate(type_size(type), type_align(type));
+
+		copy_deep(allocator, result, *this);
 
 		return result;
 	}
@@ -394,33 +440,94 @@ namespace {
 		}
 	}
 
-	/*
-	inline void copy_deep(Any dst, Any src, Allocator *allocator) {
+	inline void copy_deep(Allocator *allocator, Any dst, Any src) {
 		assert(dst.type && src.type);
+		assert(dst.type->uid == src.type->uid);
 
 		if (dst.type->kind == TypeInfoKind::STRUCT) {
-			if (has_attribute(dst.type, "array")) {
-				auto count = src.get_member("count");
-				if (count.to_value<i64>()) {
-					dst.get_member("count").to_value<i64>() = count.to_value<i64>();
-					auto elem0 = src.get_element(0);
-					dst.get_member("data").ptr_value() = allocator->allocate(
-							type_size(elem0.type) * count.to_value<i64>(), type_align(elem0.type));
-					for (i64 i = 0; i < count.to_value<i64>(); ++i) {
-						copy_deep(dst.get_element(i), src.get_element(i), allocator);
+			if (dst.type->uid == OAK_TYPE_UID(oak::Any)) {
+				dst.to_value<Any>() = src.to_value<Any>().deep_copy(allocator);
+			} else if (dst.type->uid == OAK_TYPE_UID(oak::String)) {
+				dst.to_value<String>() = copy_str(allocator, src.to_value<String>());
+			} else if (has_attribute(dst.type, "variant")) {
+				Any srcVarType;
+				auto srcVarValue = src.get_variant_value(&srcVarType);
+				if (srcVarValue.type->kind != TypeInfoKind::NONE) {
+					dst.get_member("type").set_enum_value(srcVarType.get_enum_value());
+					copy_deep(allocator, dst.get_variant_value(), srcVarValue);
+				}
+			} else if (has_attribute(dst.type, "array")) {
+				if (auto capacity = src.get_member("capacity"); capacity.type->kind != TypeInfoKind::NONE) {
+					// Allocate dynamic array data
+					if (capacity.to_value<i64>()) {
+						auto elem0 = src.get_element(0);
+						dst.get_member("data").ptr_value() = allocator->allocate(
+								type_size(elem0.type)*capacity.to_value<i64>(), type_align(elem0.type));
+					}
+					// Set array count/capacity
+					dst.get_member("capacity").to_value<i64>() = capacity.to_value<i64>();
+					if (auto dstCount = dst.get_member("count"); dstCount.type->kind != TypeInfoKind::NONE)
+						dstCount.to_value<i64>() = src.get_member("count").to_value<i64>();
+					// Copy array elements
+					for (i64 i = 0; i < src.get_array_count(); ++i) {
+						copy_deep(allocator, dst.get_element(i), src.get_element(i));
+					}
+				} else {
+					assert(src.get_property("capacity").type->kind != TypeInfoKind::NONE);
+					if (auto dstCount = dst.get_member("count"); dstCount.type->kind != TypeInfoKind::NONE)
+						dstCount.to_value<i64>() = src.get_member("count").to_value<i64>();
+					// Copy array elements
+					for (i64 i = 0; i < src.get_array_count(); ++i) {
+						copy_deep(allocator, dst.get_element(i), src.get_element(i));
 					}
 				}
 			} else {
 				auto si = static_cast<StructTypeInfo const*>(dst.type);
 				for (auto field : si->fields) {
-					copy_deep(dst.get_member(&field), src.get_member(&field), allocator);
+					copy_deep(allocator, dst.get_member(&field), src.get_member(&field));
 				}
 			}
 		} else {
 			memcpy(dst.ptr, src.ptr, type_size(dst.type));
 		}
 	}
-	*/
+
+	inline void deallocate_deep(Allocator *allocator, Any value) {
+		assert(value.type);
+
+		if (value.type->kind == TypeInfoKind::STRUCT) {
+			if (value.type->uid == OAK_TYPE_UID(oak::Any)) {
+				auto any = value.to_value<Any>();
+				deallocate_deep(allocator, any);
+				allocator->deallocate(any.ptr, type_size(any.type));
+			} else if (value.type->uid == OAK_TYPE_UID(oak::String)) {
+				auto str = value.to_value<String>();
+				deallocate(allocator, str.data, str.count);
+			} else if (has_attribute(value.type, "variant")) {
+				Any varType;
+				auto varValue = value.get_variant_value(&varType);
+				if (varValue.type->kind != TypeInfoKind::NONE) {
+					// Type is guaranteed to be an enum so no need to deallocate anything there
+					deallocate_deep(allocator, varValue);
+				}
+			} else if (has_attribute(value.type, "array")) {
+				for (i64 i = value.get_array_count(); i > 0; --i)
+					deallocate_deep(allocator, value.get_element(i - 1));
+
+				auto capacity = value.get_member("capacity");
+				if (capacity.type->kind != TypeInfoKind::NONE && capacity.to_value<i64>()) {
+					auto elem0 = value.get_element(0);
+					allocator->deallocate(
+							value.get_member("data").ptr_value(),
+							type_size(elem0.type)*capacity.to_value<i64>());
+				}
+			} else {
+				auto si = static_cast<StructTypeInfo const*>(value.type);
+				for (auto it = si->fields.end() - 1; it != si->fields.begin() - 1; --it)
+					deallocate_deep(allocator, value.get_member(it));
+			}
+		}
+	}
 
 }
 
