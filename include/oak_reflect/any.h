@@ -446,7 +446,11 @@ namespace {
 
 		if (dst.type->kind == TypeInfoKind::STRUCT) {
 			if (dst.type->uid == OAK_TYPE_UID(oak::Any)) {
-				dst.to_value<Any>() = src.to_value<Any>().deep_copy(allocator);
+				if (src.to_value<Any>().ptr)
+					dst.to_value<Any>() = src.to_value<Any>().deep_copy(allocator);
+				else
+					// Don't copy empty any values
+					dst.to_value<Any>() = src.to_value<Any>();
 			} else if (dst.type->uid == OAK_TYPE_UID(oak::String)) {
 				dst.to_value<String>() = copy_str(allocator, src.to_value<String>());
 			} else if (has_attribute(dst.type, "variant")) {
