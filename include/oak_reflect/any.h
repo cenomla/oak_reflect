@@ -24,6 +24,7 @@ namespace oak {
 
 		template<typename T>
 		static constexpr Any from_value(T *value) {
+			static_assert(Reflect<T>::typeInfo.uid != 0);
 			return { value, &Reflect<T>::typeInfo };
 		}
 
