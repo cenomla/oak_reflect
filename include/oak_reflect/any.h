@@ -418,9 +418,11 @@ namespace {
 
 		auto si0 = static_cast<StructTypeInfo const*>(dst.type);
 		auto si1 = static_cast<StructTypeInfo const*>(src.type);
-		for (auto field0 : si0->fields) {
-			for (auto field1 : si1->fields) {
-				if (field0.name == field1.name && !has_attribute(&field0, "volatile")) {
+		for (i64 i = 0, j = 0; i < si0->fields.count; ++i, ++j) {
+			auto field0 = si0->fields[i];
+			for (i64 k = 0; k < si1->fields.count; ++k) {
+				auto field1 = si1->fields[j + k - (j + k >= si1->fields.count ? si1->fields.count : 0)];
+				if (field0.name == field1.name) {
 					if (field0.typeInfo->uid == field1.typeInfo->uid) {
 						auto size = type_size(field0.typeInfo);
 						if (size)
@@ -438,6 +440,8 @@ namespace {
 					}
 				}
 			}
+			if (j >= si1->fields.count)
+				j = 0;
 		}
 	}
 
