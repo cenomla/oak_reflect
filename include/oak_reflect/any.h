@@ -28,6 +28,10 @@ namespace oak {
 			return { value, &Reflect<T>::typeInfo };
 		}
 
+		static inline Any alloc_with_type(Allocator *allocator, TypeInfo const *typeInfo) {
+			return { allocator->allocate(type_size(typeInfo), type_align(typeInfo)), typeInfo };
+		}
+
 		// Member functions
 		Any get_member(String name, FieldInfo const ** info = nullptr) const noexcept;
 		Any get_member(FieldInfo const *info) const noexcept;
