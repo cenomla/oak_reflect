@@ -198,14 +198,19 @@ void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 							break;
 						}
 
-						if (type->isRecordType() && !should_reflect_decl(type->getAsTagDecl())) {
+						if (type->isEnumeralType() && !should_reflect_decl(type->getAsTagDecl()))
 							return;
-						}
+
+						if (type->isRecordType() && !should_reflect_decl(type->getAsTagDecl()))
+							return;
+
 						if (type->isPointerType()) {
 							auto pType = type->getPointeeType().getTypePtr();
-							if (pType->isRecordType() && !should_reflect_decl(pType->getAsTagDecl())) {
+							if (pType->isEnumeralType() && !should_reflect_decl(pType->getAsTagDecl()))
 								return;
-							}
+
+							if (pType->isRecordType() && !should_reflect_decl(pType->getAsTagDecl()))
+								return;
 						}
 					} break;
 				default:
@@ -531,9 +536,15 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 			<< ", &detail::generic_construct<T> };\n";
 	} else if (decl->isClass() || decl->isStruct()) {
 		// Get the first base
+		clang::CXXRecordDecl *baseDecl = nullptr;
 		if (decl->getNumBases()) {
 			auto base = decl->bases_begin()->getType().getTypePtr()->getAsCXXRecordDecl();
-			auto baseName = get_type_name(base);
+			if (should_reflect_decl(base))
+				baseDecl = base;
+		}
+
+		if (baseDecl) {
+			auto baseName = get_type_name(baseDecl);
 			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
 				<< "), TypeInfoKind::STRUCT }, \"" << typeName
 				<< "\", \"" << annotation

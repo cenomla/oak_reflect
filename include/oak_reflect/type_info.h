@@ -165,6 +165,7 @@ namespace oak {
 
 	template<typename T, typename Enable = std::true_type>
 	struct Reflect {
+		static_assert(std::is_same_v<T, NoType>, "Cannot instantiate Reflect<> with a type other than NoType");
 		static constexpr TypeInfo typeInfo{ 0, TypeInfoKind::NONE };
 	};
 
@@ -257,18 +258,29 @@ namespace oak {
 
 		template<typename Out>
 		struct FunctionReflectionData<Out()> {
-			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			//static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<NoType>::typeInfo;
 
-			static constexpr Slice<TypeInfo const* const> argTypeInfos{};
+			static constexpr Slice<TypeInfo const* const> argTypeInfos = {};
 		};
 
 		template<typename Out, typename... In>
 		struct FunctionReflectionData<Out(In...)> {
-			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			//static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<NoType>::typeInfo;
 
+			static constexpr Slice<TypeInfo const* const> argTypeInfos = {};
+
+			// NOTE: This causes Reflect instantiations for types that shouldn't have it,
+			// we might need to generate this struct using the code generator so we can emit
+			// empty, argument types for non reflected argument types.
+			// Maybe there is a way we could sfinaegle our way around this as
+			// well (by testing if Reflect<In> == Reflect<NoType>
+#if 0
 			static constexpr TypeInfo const* argTypeInfos[] = {
 				&Reflect<In>::typeInfo...,
 			};
+#endif
 		};
 
 		template<typename T>
@@ -276,20 +288,31 @@ namespace oak {
 
 		template<typename T, typename Out>
 		struct MemberFunctionReflectionData<Out (T::*)()> {
-			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			//static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<NoType>::typeInfo;
 
-			static constexpr Slice<TypeInfo const* const> argTypeInfos{};
+			static constexpr Slice<TypeInfo const* const> argTypeInfos = {};
 
 			//static constexpr TypeInfo const* classTypeInfo = &Reflect<T>::typeInfo;
 		};
 
 		template<typename T, typename Out, typename... In>
 		struct MemberFunctionReflectionData<Out (T::*)(In...)> {
-			static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			//static constexpr TypeInfo const* returnTypeInfo = &Reflect<Out>::typeInfo;
+			static constexpr TypeInfo const* returnTypeInfo = &Reflect<NoType>::typeInfo;
 
+			static constexpr Slice<TypeInfo const* const> argTypeInfos = {};
+
+			// NOTE: This causes Reflect instantiations for types that shouldn't have it,
+			// we might need to generate this struct using the code generator so we can emit
+			// empty, argument types for non reflected argument types.
+			// Maybe there is a way we could sfinaegle our way around this as
+			// well (by testing if Reflect<In> == Reflect<NoType>
+#if 0
 			static constexpr TypeInfo const* argTypeInfos[] = {
 				&Reflect<In>::typeInfo...,
 			};
+#endif
 
 			//static constexpr TypeInfo const* classTypeInfo = &Reflect<T>::typeInfo;
 		};

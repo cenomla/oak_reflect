@@ -455,13 +455,13 @@ namespace {
 
 		if (dst.type->kind == TypeInfoKind::STRUCT) {
 			if (dst.type->uid == OAK_TYPE_UID(oak::Any)) {
-				if (src.to_value<Any>().ptr)
-					dst.to_value<Any>() = src.to_value<Any>().deep_copy(allocator);
+				if (static_cast<Any*>(src.ptr)->ptr)
+					*static_cast<Any*>(dst.ptr) = static_cast<Any*>(src.ptr)->deep_copy(allocator);
 				else
 					// Don't copy empty any values
-					dst.to_value<Any>() = src.to_value<Any>();
+					*static_cast<Any*>(dst.ptr) = *static_cast<Any*>(src.ptr);
 			} else if (dst.type->uid == OAK_TYPE_UID(oak::String)) {
-				dst.to_value<String>() = copy_str(allocator, src.to_value<String>());
+				*static_cast<String*>(dst.ptr) = copy_str(allocator, *static_cast<String*>(src.ptr));
 			} else if (has_attribute(dst.type, "variant")) {
 				Any srcVarType;
 				auto srcVarValue = src.get_variant_value(&srcVarType);
@@ -510,11 +510,11 @@ namespace {
 
 		if (value.type->kind == TypeInfoKind::STRUCT) {
 			if (value.type->uid == OAK_TYPE_UID(oak::Any)) {
-				auto any = value.to_value<Any>();
+				auto any = *static_cast<Any*>(value.ptr);
 				deallocate_deep(allocator, any);
 				allocator->deallocate(any.ptr, type_size(any.type));
 			} else if (value.type->uid == OAK_TYPE_UID(oak::String)) {
-				auto str = value.to_value<String>();
+				auto str = *static_cast<String*>(value.ptr);
 				deallocate(allocator, str.data, str.count);
 			} else if (has_attribute(value.type, "variant")) {
 				Any varType;

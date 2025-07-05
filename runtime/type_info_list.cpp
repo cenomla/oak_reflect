@@ -5,6 +5,7 @@
 namespace oak {
 
 	void TypeCategory::add_type(TypeInfo const* typeInfo) {
+		assert(typeInfo->uid != 0);
 		// Don't add duplicates
 		for (auto type : types) {
 			if (type->uid == typeInfo->uid) {
