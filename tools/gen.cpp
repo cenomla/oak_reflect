@@ -79,6 +79,50 @@ bool should_reflect_decl(clang::Decl const *decl) {
 	return annotationString.find("reflect") == 0;
 }
 
+bool should_reflect_record_decl(clang::RecordDecl const *record) {
+	if (!should_reflect_decl(record))
+		return false;
+	if (record->isUnion())
+		return true;
+
+	auto cxxRecord = static_cast<clang::CXXRecordDecl const*>(record);
+
+	if (clang::isTemplateInstantiation(cxxRecord->getTemplateSpecializationKind())) {
+		// Only reflect template type whose template type parameters are also being reflected
+		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(cxxRecord);
+		for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
+			auto kind = arg.getKind();
+			switch (kind) {
+				case clang::TemplateArgument::Type:
+					{
+						auto type = arg.getAsType().getTypePtr();
+						if (type->isBuiltinType())
+							break;
+
+						if (type->isEnumeralType() && !should_reflect_decl(type->getAsTagDecl()))
+							return false;
+
+						if (type->isRecordType() && !should_reflect_record_decl(type->getAsRecordDecl()))
+							return false;
+
+						if (type->isPointerType()) {
+							auto pType = type->getPointeeType().getTypePtr();
+							if (pType->isEnumeralType() && !should_reflect_decl(pType->getAsTagDecl()))
+								return false;
+
+							if (pType->isRecordType() && !should_reflect_record_decl(pType->getAsRecordDecl()))
+								return false;
+						}
+					} break;
+				default:
+					break;
+			}
+		}
+	}
+
+	return true;
+}
+
 bool is_property(clang::Decl const *decl) {
 	return decl->getKind() == clang::Decl::Kind::Var
 			&& static_cast<clang::VarDecl const*>(decl)->isStaticDataMember();
@@ -87,6 +131,7 @@ bool is_property(clang::Decl const *decl) {
 bool decl_always_comes_before(clang::TagDecl const *lhs, clang::TagDecl const *rhs) {
 	// TODO: Needs to take arrays into consideration (ie. Vec2 points[2])
 	if (rhs->isRecord()) {
+		// TODO: This probably breaks for unions
 		auto recordDecl = static_cast<clang::CXXRecordDecl const*>(rhs);
 		if (isTemplateInstantiation(recordDecl->getTemplateSpecializationKind())) {
 			auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(recordDecl);
@@ -185,39 +230,9 @@ void DeclFinder::parse_record(clang::CXXRecordDecl const *record) {
 			return;
 		}
 	}
-	if (clang::isTemplateInstantiation(record->getTemplateSpecializationKind())) {
-		// Only reflect template type whose template type parameters are also being reflected
-		auto specialization = static_cast<clang::ClassTemplateSpecializationDecl const*>(record);
-		for (auto const& arg : specialization->getTemplateInstantiationArgs().asArray()) {
-			auto kind = arg.getKind();
-			switch (kind) {
-				case clang::TemplateArgument::Type:
-					{
-						auto type = arg.getAsType().getTypePtr();
-						if (type->isBuiltinType()) {
-							break;
-						}
 
-						if (type->isEnumeralType() && !should_reflect_decl(type->getAsTagDecl()))
-							return;
-
-						if (type->isRecordType() && !should_reflect_decl(type->getAsTagDecl()))
-							return;
-
-						if (type->isPointerType()) {
-							auto pType = type->getPointeeType().getTypePtr();
-							if (pType->isEnumeralType() && !should_reflect_decl(pType->getAsTagDecl()))
-								return;
-
-							if (pType->isRecordType() && !should_reflect_decl(pType->getAsTagDecl()))
-								return;
-						}
-					} break;
-				default:
-					break;
-			}
-		}
-	}
+	if (!should_reflect_record_decl(record))
+		return;
 
 	add_decl(record);
 }
@@ -233,6 +248,10 @@ void DeclFinder::parse_enum(clang::EnumDecl const *enumeration) {
 			return;
 		}
 	}
+
+	if (!should_reflect_decl(enumeration))
+			return;
+
 	add_decl(enumeration);
 }
 
