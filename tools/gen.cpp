@@ -312,6 +312,7 @@ struct DeclConstexprSerializer : DeclSerializer {
 	llvm::raw_fd_ostream fs;
 
 	std::string typeListString;
+	int64_t typeCount;
 
 	std::error_code ec;
 
@@ -320,10 +321,6 @@ struct DeclConstexprSerializer : DeclSerializer {
 			std::string const& includePrefix,
 			std::vector<std::string> const& sourcePaths);
 	~DeclConstexprSerializer();
-
-	void write_start_type_list();
-
-	void write_end_type_list();
 
 	void write_record_type_list_item(clang::CXXRecordDecl const* decl);
 
@@ -346,45 +343,36 @@ DeclConstexprSerializer::DeclConstexprSerializer(
 		std::string const& outputPath_,
 		std::string const& includePrefix_,
 		std::vector<std::string> const& sourcePaths_)
-			: outputPath{ outputPath_ }, fs{ outputPath_, ec } {
+			: outputPath{ outputPath_ }, fs{ outputPath_, ec }, typeListString{}, typeCount{ 0 }, ec{} {
 
 	write_header(includePrefix_, sourcePaths_);
-
-	write_start_type_list();
 }
 
 DeclConstexprSerializer::~DeclConstexprSerializer() {
-	write_end_type_list();
 	write_type_list();
 	write_footer();
 }
 
-void DeclConstexprSerializer::write_start_type_list() {
-	auto start = outputPath.find_last_of("/") + 1;
-	auto end = outputPath.find_first_of(".", start);
-	auto listName = outputPath.substr(start, end - start);
-
-	llvm::raw_string_ostream ss{ typeListString };
-	ss << "constexpr TypeInfo const* typeList_" << listName << "[] = {\n";
-}
-
-void DeclConstexprSerializer::write_end_type_list() {
-	llvm::raw_string_ostream ss{ typeListString };
-	ss << "};\n";
-}
-
 void DeclConstexprSerializer::write_record_type_list_item(clang::CXXRecordDecl const* decl) {
+	++typeCount;
 	llvm::raw_string_ostream ss{ typeListString };
 	ss << "&Reflect<" << get_type_name(decl) << ">::typeInfo,\n";
 }
 
 void DeclConstexprSerializer::write_enum_type_list_item(clang::EnumDecl const* decl) {
+	++typeCount;
 	llvm::raw_string_ostream ss{ typeListString };
 	ss << "&Reflect<" << get_type_name(decl) << ">::typeInfo,\n";
 }
 
 void DeclConstexprSerializer::write_type_list() {
+	auto start = outputPath.find_last_of("/") + 1;
+	auto end = outputPath.find_first_of(".", start);
+	auto listName = outputPath.substr(start, end - start);
+
+	fs << "static constexpr FixedArray<TypeInfo const*, " << typeCount << "> typeList_" << listName << " = {\n";
 	fs << typeListString;
+	fs << "};\n";
 }
 
 void DeclConstexprSerializer::write_header(
@@ -413,52 +401,40 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 	fs << "template<> struct Reflect<" << typeName << "> {\n";
 	fs <<  "\tusing T = " << typeName << ";\n";
 
-	bool hasFields = false;
-	bool hasMethods = false;
-	bool hasProperties = false;
+	int64_t fieldCount = 0;
+	int64_t methodCount = 0;
+	int64_t propertyCount = 0;
 	for (auto field : decl->fields()) {
-		if (should_reflect_decl(field)) {
-			hasFields = true;
-			break;
-		}
+		if (should_reflect_decl(field))
+			++fieldCount;
 	}
 	for (auto func : decl->methods()) {
-		if (should_reflect_decl(func)) {
-			hasMethods = true;
-			break;
-		}
+		if (should_reflect_decl(func))
+			++methodCount;
 	}
 
 	for (auto prop : decl->decls()) {
-		if (is_property(prop) && should_reflect_decl(prop)) {
-			hasProperties = true;
-			break;
-		}
+		if (is_property(prop) && should_reflect_decl(prop))
+			++propertyCount;
 	}
 
 	for (auto const& base : decl->bases()) {
 		auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
 		for (auto field : bDecl->fields()) {
-			if (should_reflect_decl(field)) {
-				hasFields = true;
-				break;
-			}
+			if (should_reflect_decl(field))
+				++fieldCount;
 		}
 		for (auto func : bDecl->methods()) {
-			if (should_reflect_decl(func)) {
-				hasMethods = true;
-				break;
-			}
+			if (should_reflect_decl(func))
+				++methodCount;
 		}
 		for (auto prop : decl->decls()) {
-			if (is_property(prop) && should_reflect_decl(prop)) {
-				hasProperties = true;
-				break;
-			}
+			if (is_property(prop) && should_reflect_decl(prop))
+				++propertyCount;
 		}
 	}
-	if (hasFields) {
-		fs << "\tstatic constexpr FieldInfo fields[] = {\n";
+	if (fieldCount) {
+		fs << "\tstatic constexpr FixedArray<FieldInfo const, " << fieldCount << "> fields = { {\n";
 		for (auto const& base : decl->bases()) {
 			auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
 			for (auto const field : bDecl->fields()) {
@@ -484,10 +460,10 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				<< "\", &Reflect<decltype(T::" << fname
 				<< ")>::typeInfo, offsetof(T, " << fname << ")},\n";
 		}
-		fs << "\t};\n";
+		fs << "\t} };\n";
 	}
-	if (hasMethods) {
-		fs << "\tstatic constexpr MethodInfo methods[] = {\n";
+	if (methodCount) {
+		fs << "\tstatic constexpr FixedArray<MethodInfo const, " << methodCount << "> methods = { {\n";
 		for (auto const& base : decl->bases()) {
 			auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
 			for (auto const func : bDecl->methods()) {
@@ -515,10 +491,10 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				<< "\", \"" << fanno
 				<< "\", &Reflect<decltype(&T::" << fname << ")>::typeInfo, 0},\n";
 		}
-		fs << "\t};\n";
+		fs << "\t} };\n";
 	}
-	if (hasProperties) {
-		fs << "\tstatic constexpr PropertyInfo properties[] = {\n";
+	if (propertyCount) {
+		fs << "\tstatic constexpr FixedArray<PropertyInfo const, " << propertyCount << "> properties = { {\n";
 		for (auto const& base : decl->bases()) {
 			auto bDecl = base.getType().getTypePtr()->getUnqualifiedDesugaredType()->getAsCXXRecordDecl();
 			for (auto prop : bDecl->decls()) {
@@ -544,14 +520,14 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				<< "\", &Reflect<std::remove_cv_t<decltype(T::" << fname
 				<< ")>>::typeInfo, &T::" << fname << "},\n";
 		}
-		fs << "\t};\n";
+		fs << "\t} };\n";
 	}
 
 	if (decl->isUnion()) {
 		fs << "\tstatic constexpr UnionTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
 			<< "), TypeInfoKind::UNION }, \"" << typeName
 			<< "\", \"" << annotation
-			<< "\", sizeof(T), alignof(T), " << (hasFields ? "fields" : "{}")
+			<< "\", sizeof(T), alignof(T), " << (fieldCount ? "fields" : "{}")
 			<< ", &detail::generic_construct<T> };\n";
 	} else if (decl->isClass() || decl->isStruct()) {
 		// Get the first base
@@ -568,17 +544,17 @@ void DeclConstexprSerializer::write_parsed_record(clang::CXXRecordDecl const *de
 				<< "), TypeInfoKind::STRUCT }, \"" << typeName
 				<< "\", \"" << annotation
 				<< "\", sizeof(T), alignof(T), &Reflect<" << baseName
-				<< ">::typeInfo, " << (hasFields ? "fields" : "{}")
-				<< ", " << (hasMethods ? "methods" : "{}")
-				<< ", " << (hasProperties ? "properties" : "{}")
+				<< ">::typeInfo, " << (fieldCount ? "fields" : "{}")
+				<< ", " << (methodCount ? "methods" : "{}")
+				<< ", " << (propertyCount ? "properties" : "{}")
 				<< ", &detail::generic_construct<T> };\n";
 		} else {
 			fs << "\tstatic constexpr StructTypeInfo typeInfo{ { OAK_TYPE_UID(" << typeName
 				<< "), TypeInfoKind::STRUCT }, \"" << typeName
 				<< "\", \"" << annotation
-				<< "\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, " << (hasFields ? "fields" : "{}")
-				<< ", " << (hasMethods ? "methods" : "{}")
-				<< ", " << (hasProperties ? "properties" : "{}")
+				<< "\", sizeof(T), alignof(T), &Reflect<NoType>::typeInfo, " << (fieldCount ? "fields" : "{}")
+				<< ", " << (methodCount ? "methods" : "{}")
+				<< ", " << (propertyCount ? "properties" : "{}")
 				<< ", &detail::generic_construct<T> };\n";
 		}
 	}
@@ -594,15 +570,19 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 	fs << "template<> struct Reflect<" << typeName << "> {\n";
 	fs << "\tusing T = " << typeName << ";\n";
 
-	bool hasConstants = decl->enumerator_begin() != decl->enumerator_end();
-	if (hasConstants) {
-		fs << "\tstatic constexpr EnumConstantInfo enumConstants[] = {\n";
+	int64_t constantsCount = 0;
+	for (auto const& enumConstant : decl->enumerators()) {
+		++constantsCount;
+	}
+
+	if (constantsCount) {
+		fs << "\tstatic constexpr FixedArray<EnumConstantInfo const, " << constantsCount << "> enumConstants = { {\n";
 		for (auto const& enumConstant : decl->enumerators()) {
 			auto const& ename = enumConstant->getDeclName().getAsString();
 			auto evalue = static_cast<uint64_t>(enumConstant->getInitVal().getExtValue());
 			fs << "\t\t{ \"" << ename << "\", " << evalue << " },\n";
 		}
-		fs << "\t};\n";
+		fs << "\t} };\n";
 	}
 
 	auto const& underlyingTypeName = decl->getIntegerType().getAsString();
@@ -611,7 +591,7 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 		<< "), TypeInfoKind::ENUM }, \"" << typeName
 		<< "\", \"" << annotation
 		<< "\", &Reflect<" << underlyingTypeName
-		<< ">::typeInfo, " << (hasConstants ? "enumConstants" : "{}")
+		<< ">::typeInfo, " << (constantsCount ? "enumConstants" : "{}")
 		<< " };\n";
 
 	fs << "};\n";
