@@ -571,7 +571,7 @@ void DeclConstexprSerializer::write_parsed_enum(clang::EnumDecl const *decl) {
 	fs << "\tusing T = " << typeName << ";\n";
 
 	int64_t constantsCount = 0;
-	for (auto const& enumConstant : decl->enumerators()) {
+	for ([[maybe_unused]] auto const& enumConstant : decl->enumerators()) {
 		++constantsCount;
 	}
 
