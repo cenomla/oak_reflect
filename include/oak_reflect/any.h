@@ -374,7 +374,11 @@ namespace {
 			}
 			case TypeInfoKind::STRUCT:
 			{
-				if (has_attribute(lhs.type, "array")) {
+				if (lhs.type->uid == OAK_TYPE_UID(oak::Any)) {
+					return *static_cast<Any*>(lhs.ptr) == *static_cast<Any*>(rhs.ptr);
+				} else if (has_attribute(lhs.type, "variant")) {
+					return lhs.get_variant_value() == rhs.get_variant_value();
+				} else if (has_attribute(lhs.type, "array")) {
 					auto lhsCount = get_any_struct_array_count(lhs);
 					auto rhsCount = get_any_struct_array_count(rhs);
 					if (lhsCount != rhsCount)
