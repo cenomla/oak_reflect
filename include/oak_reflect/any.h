@@ -200,7 +200,7 @@ namespace {
 					elemType = static_cast<PointerTypeInfo const*>(data.type)->to;
 					break;
 				default:
-					assert(false && "Invalid element type");
+					OAK_UNREACHABLE("Invalid element type");
 			}
 
 			if (index < count) {
