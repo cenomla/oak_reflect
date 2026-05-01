@@ -41,6 +41,7 @@ namespace oak {
 
 		// Array functions
 		i64 get_array_count() const noexcept;
+		TypeInfo const* get_element_type() const noexcept;
 		Any get_element(i64 index) const noexcept;
 
 		// Variant functions
@@ -178,6 +179,26 @@ namespace {
 		return 0;
 	}
 
+	inline TypeInfo const* Any::get_element_type() const noexcept {
+		if (type->kind == TypeInfoKind::ARRAY) {
+			auto ai = static_cast<ArrayTypeInfo const*>(type);
+			return ai->of;
+		} else if (has_attribute(type, "array")) {
+			auto data = get_member("data");
+
+			switch (data.type->kind) {
+				case TypeInfoKind::ARRAY:
+					return static_cast<ArrayTypeInfo const*>(data.type)->of;
+				case TypeInfoKind::POINTER:
+					return static_cast<PointerTypeInfo const*>(data.type)->to;
+				default:
+					OAK_UNREACHABLE("Invalid element type");
+			}
+		}
+
+		return &Reflect<NoType>::typeInfo;
+	}
+
 	inline Any Any::get_element(i64 index) const noexcept {
 		if (type->kind == TypeInfoKind::ARRAY) {
 			auto ai = static_cast<ArrayTypeInfo const*>(type);
@@ -203,11 +224,8 @@ namespace {
 					OAK_UNREACHABLE("Invalid element type");
 			}
 
-			if (index < count) {
+			if (index < count)
 				return { add_ptr(dataPtr, index * type_size(elemType)), elemType };
-			} else {
-				return { nullptr, elemType };
-			}
 		}
 		return { nullptr, &Reflect<NoType>::typeInfo };
 	}
@@ -533,10 +551,10 @@ namespace {
 
 				auto capacity = value.get_member("capacity");
 				if (capacity.type->kind != TypeInfoKind::NONE && capacity.to_value<i64>()) {
-					auto elem0 = value.get_element(0);
+					auto elemType = value.get_element_type();
 					allocator->deallocate(
 							value.get_member("data").ptr_value(),
-							type_size(elem0.type)*capacity.to_value<i64>());
+							type_size(elemType)*capacity.to_value<i64>());
 				}
 			} else {
 				auto si = static_cast<StructTypeInfo const*>(value.type);
