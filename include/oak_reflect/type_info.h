@@ -4,6 +4,7 @@
 
 #include <oak_util/types.h>
 #include <oak_util/hash.h>
+#include <oak_util/memory.h>
 #include <oak_util/containers.h>
 #include <oak_util/algorithm.h>
 
@@ -39,7 +40,7 @@ namespace oak {
 		template<typename T>
 		void generic_construct(void *obj) {
 			if constexpr(std::is_default_constructible_v<T>) {
-				new (obj) T{};
+				new (NewTag{}, obj) T{};
 			}
 		}
 	}
